@@ -1,7 +1,4 @@
 requests
-requests_cache
-mmh3
 numpy
 tqdm
 transformers
-
