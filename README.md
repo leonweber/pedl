@@ -1,14 +1,72 @@
 # PEDL
 
 PEDL is a tool for predicting protein-protein assocations from the biomedical literature.
+It searches more than 30 million abstracts of biomedical publications and over 4 million
+full texts with the help of [PubTatorCentral](https://www.ncbi.nlm.nih.gov/research/pubtator/).
+A state-of-the-art machine reading model then predicts which types of association between the proteins
+are supported by the literature. Among others, PEDL can detect posttranslational modifications, 
+transcription factor-target interactions, complex formations and controlled transports.
 
+## Installation
+
+```
+pip install pedl
+```
 
 ## Usage
 
-### Predict
-```bash
-pedl 
-```
+
+### Prediction
+
+* Interactions between single proteins:
+    ```bash
+    pedl --p1 5052 --p2 7099 --out PEDL_predictions
+    ```
+  Results:
+  ```bash
+  $ ls PEDL_predictions/
+  PRDX1-TLR4.txt  TLR4-PRDX1.txt
+  
+  $ head -n1 PEDL_predictions/PRDX1-TLR4.txt
+  in-complex-with 0.93    4872721 <e1>PRDX1</e1> functioned as a ligand for <e2>Toll-like receptor 4</e2> to enhance HIF-1alpha expression and HIF-1 binding to the promoter of the VEGF gene in endothelial cells, thereby potentiating VEGF expression.    PEDL
+  ```
+
+
+
+* Pairwise interactions between multiple proteins:
+  ```bash
+  pedl --p1 5052 --p2  7099 222344  --out PEDL_predictions
+  ```
+  searches for interactions between 5052 and 7099, and for interactions between 5052 and 222344
+
+
+* Read protein lists from files:
+  ```bash
+  pedl --p1 proteins.txt --p2  7099 222344  --out PEDL_predictions
+  ```
+  searches for interactions between the proteins in `proteins.txt` and 7099, as well as interactions between proteins in `proteins.txt` and 222344
+  
+
+* Search for interactions in multiple species via the orthologs of the provided proteins:
+    ```bash
+    pedl --p1 5052 --p2 7099 --out PEDL_predictions --expand_species 10090 10116
+    ```
+    would also include interactions in Mouse and Rat
+
+
+### Prediction for large gene lists  
+If you need to test for more than 100 interactions at once, you have to use a local copy 
+of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
+Unpack the PubTatorCentral files and point PEDL towards the file:
+  ```bash
+  pedl --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions --pubtator [PATH_TO_PUBTATOR]
+  ```
+
+In this case, it is also strongly advised to use a CUDA-compatible GPU to speed up the machine reading:
+  ```bash
+  pedl --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions
+    --pubtator [PATH_TO_PUBTATOR]--device cuda
+  ```
 
 
 
@@ -30,46 +88,4 @@ If you use PEDL in your work, please cite us
 }
 ```
 
-
-## Requirements
-* `python >= 3.6`
-* `pip install -r requirements.txt`
-* `pytorch >= 1.3.1` (has to be installed manually, due to different CUDA versions)
-
-## Generate data
-We use two types of data sets: Data generated from the BioNLP-ST event extraction data sets and the distantly supervised PID data set
-
-### Generate BioNLP
-`./conversion/make_bionlp_data.sh` generates the BioNLP data sets for both PEDL and [comb-dist](https://github.com/allenai/comb_dist_direct_relex/tree/master/relex)
-
-All experiments in the paper have been performed with the masked version of the data, e.g. `distant_supervision/data/BioNLP-ST_2011/train_masked.json`.
-
-### Generate PID
-Generating the PID data is a bit more involved:
-
-1. First, we have to download the raw PubMed Central texts: `python download_pmc.py`. CAUTION: This produces over 200 GB of files and spawns multiple processes.
-2. Then, we have to download the [PubTator Central file](ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/bioconcepts2pubtatorcentral.offset.gz) and place it into the root directory. This file consumes another 80 GB when decompressed.
-3. Generate the raw PID data: `./conversion/generate_raw_pid.sh`
-4. Generate the final PID data: `./conversion_make_pid.sh`
-
-
-## Training PEDL
-Before training, [SciBERT](https://s3-us-west-2.amazonaws.com/ai2-s2-research/scibert/huggingface_pytorch/scibert_scivocab_uncased.tar) has to be downloaded and placed to some directory (called `$bert_dir` from now on). 
-
-The vocabulary of SciBERT has to be adapted to include the entity markers and protein masks: `cp distant_supervision/vocab.txt $bert_dir`
-
-PEDL can be trained with `python -m distant_supervision.train_pedl`, (see `train_pedl.sh` for exact suitable arguments.
-
-If you just want to reproduce the experiments from the paper, this can be achieved with `./train_pedl.sh`.
-
-## Pretrained model
-As an alternative to training your own model, you can use [this version of PEDL](https://drive.google.com/open?id=1Toh49LDPdB8SoyRnhoO43HBC_nG4Ur3I) that was trained on PID and used for the experiments in the paper.
-
-## Predicting with PEDL
-The trained PEDL model can be used to predict PPAs for a new data set. See `predict_pedl.sh` for details.
-
-
-
-## Disclaimer
-Note, that this is highly experimental research code which is not suitable for production usage. We do not provide warranty of any kind. Use at your own risk.
 
