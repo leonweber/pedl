@@ -5,3 +5,4 @@ torch>=1.8
 transformers>=4.6
 lxml
 bioc
+segtok
