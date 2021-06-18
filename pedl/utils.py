@@ -6,22 +6,19 @@ import os
 import pickle
 import re
 import shutil
-import sys
 import tempfile
 import warnings
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
 
 import requests
 from lxml import etree
-import yaml
 import bioc
 import numpy as np
-from flair.tokenization import SegtokSentenceSplitter
 from transformers.file_utils import default_cache_path
+from segtok.segmenter import split_multi
 
 
 
@@ -30,6 +27,52 @@ if not cache_root.exists():
     os.makedirs(cache_root, exist_ok=True)
 
 root = Path(__file__).parent
+
+
+class Sentence:
+    def __init__(self, text:str, start_pos: int, pmid: Optional[str] = None,
+                 text_blinded: Optional[str] = None):
+        self.text = text
+        self.pmid = pmid
+        self.start_pos = start_pos
+        self.end_pos = start_pos + len(text)
+        self.text_blinded = text_blinded
+
+    def get_unmarked_text(self):
+        return self.text.replace("<e1>", "").replace("</e1>", "").replace("<e2>", "").replace("</e2>", "")
+
+
+
+class SegtokSentenceSplitter:
+    """
+        For further details see: https://github.com/fnl/segtok
+    """
+
+    def split(self, text: str) -> List[Sentence]:
+        sentences = []
+        offset = 0
+
+        plain_sentences = split_multi(text)
+        for sentence in plain_sentences:
+            sentence_offset = text.find(sentence, offset)
+
+            if sentence_offset == -1:
+                raise AssertionError(f"Can't find offset for sentences {plain_sentences} "
+                                     f"starting from {offset}")
+
+            sentences += [
+                Sentence(
+                    text=sentence,
+                    start_pos=sentence_offset,
+                )
+            ]
+
+            offset += len(sentence)
+
+        return sentences
+
+
+
 
 from tqdm import tqdm as _tqdm, tqdm
 
@@ -274,14 +317,6 @@ def replace_consistently(offset, length, replacement, text, offsets):
 
     return new_text, new_offsets
 
-@dataclass
-class Sentence:
-    pmid: str
-    text: str
-    text_blinded: str
-
-    def get_unmarked_text(self):
-        return self.text.replace("<e1>", "").replace("</e1>", "").replace("<e2>", "").replace("</e2>", "")
 
 
 class LocalPubtatorManager:
@@ -522,7 +557,7 @@ class DataGetter:
     def get_sentences(self, protein1, protein2):
         if protein1 not in self.gene2pmid or protein2 not in self.gene2pmid:
             return []
-        pmids = self.gene2pmid[protein1] & self.gene2pmid[protein2]
+        pmids = sorted(self.gene2pmid[protein1] & self.gene2pmid[protein2])
         if not pmids:
             return []
 
@@ -555,12 +590,10 @@ class DataGetter:
     def get_documents_from_api(self, pmids):
         service_root = "https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/biocxml"
         documents = []
+        pmids = list(pmids)
 
-        if len(pmids) > self.CHUNK_SIZE:
-            it = tqdm(list(chunks(pmids, self.CHUNK_SIZE)), desc="Receiving sentences")
-        else:
-            it = pmids
-        for pmid_chunk in it:
+        pbar = tqdm(desc="Fetching documents", total=len(pmids))
+        for pmid_chunk in list(chunks(pmids, self.CHUNK_SIZE)):
             cached_documents, uncached_pmids = self.maybe_get_from_cache(pmid_chunk)
             pmid_to_pmcid = self.maybe_map_to_pmcid(pmid_chunk)
             pmids = [i for i in uncached_pmids if i not in pmid_to_pmcid]
@@ -572,6 +605,8 @@ class DataGetter:
             collection = bioc.loads(result.content.decode())
             self.cache_documents(collection.documents)
             documents += collection.documents
+            pbar.update(len(pmid_chunk))
+            break
 
         return documents
 
@@ -661,7 +696,8 @@ class DataGetter:
                                                      replacement=f"<protein{i}/>",
                                                      text=blinded_text, offsets=offsets)
 
-        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text)
+        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text,
+                        start_pos=snippet_start)
 
 
 def get_geneid_to_name():

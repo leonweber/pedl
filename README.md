@@ -1,6 +1,35 @@
 # PEDL
 
-PEDL is a method for predicting protein-protein assocations from text. The paper describing it will be presented at ISMB 2020.
+PEDL is a tool for predicting protein-protein assocations from the biomedical literature.
+
+
+## Usage
+
+### Predict
+```bash
+pedl 
+```
+
+
+
+
+## References
+Code and instructions to reproduce the results of our [paper](https://academic.oup.com/bioinformatics/article/36/Supplement_1/i490/5870497), can be found [here](https://github.com/leonweber/pedl_ismb20).
+
+If you use PEDL in your work, please cite us 
+```
+@article{weber2020pedl,
+  title={PEDL: extracting protein--protein associations using deep language models and distant supervision},
+  author={Weber, Leon and Thobe, Kirsten and Migueles Lozano, Oscar Arturo and Wolf, Jana and Leser, Ulf},
+  journal={Bioinformatics},
+  volume={36},
+  number={Supplement\_1},
+  pages={i490--i498},
+  year={2020},
+  publisher={Oxford University Press}
+}
+```
+
 
 ## Requirements
 * `python >= 3.6`

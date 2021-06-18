@@ -14,5 +14,6 @@ setup(
     license='MIT',
     packages=find_packages(),
     install_requires=required,
-    entry_points={"console_scripts": ["pedl=pedl.predict:main"]}
+    entry_points={"console_scripts": ["pedl=pedl.predict:main"]},
+    package_data={"pedl": ["data/*"]}
 )

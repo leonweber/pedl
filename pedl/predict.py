@@ -55,7 +55,8 @@ def main():
         sys.exit(1)
 
     model = BertForDistantSupervision.from_pretrained(args.model)
-    model.bert = nn.DataParallel(model.bert)
+    if args.device == "cuda":
+        model.bert = nn.DataParallel(model.bert)
     model.eval()
     model.to(args.device)
 
@@ -73,8 +74,12 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
 
-    logging.info("Preparing databases")
-    dbs = [PathwayCommonsDB(i, gene_universe=universe) for i in args.dbs]
+    if args.dbs:
+        logging.info("Preparing databases")
+        dbs = [PathwayCommonsDB(i, gene_universe=universe) for i in args.dbs]
+    else:
+        dbs = []
+
 
     pbar = tqdm(total=len(p1s)*len(p2s)*2)
     for i in range(2):
@@ -107,17 +112,24 @@ def main():
                             processed_db_results.add(db_result)
 
                     probs = []
-                    sentences = data_getter.get_sentences(p1, p2)
-                    for sentences_batch in tqdm(list(chunks(sentences, args.batch_size)),
-                                                desc="Predicting"):
+                    sentences = sorted(data_getter.get_sentences(p1, p2),
+                                       key=lambda x: len(x.text))
+
+
+                    pbar_pred = tqdm(desc="Predicting", total=len(sentences))
+                    for sentences_batch in list(chunks(sentences, args.batch_size)):
                         tensors = tokenizer.batch_encode_plus([i.text_blinded for i in sentences_batch],
-                                                              max_length=512, truncation=True, return_tensors="pt", padding=True)
+                                                              truncation=True, max_length=512)
+                        max_length = max(len(i) for i in tensors["input_ids"])
+                        tensors = tokenizer.pad(tensors, max_length=max_length,
+                                                return_tensors="pt")
                         input_ids = tensors["input_ids"].to(args.device)
                         attention_mask = tensors["attention_mask"].to(args.device)
                         with torch.no_grad():
                             x, meta = model(input_ids, attention_mask)
                         probs_batch = torch.sigmoid(meta["alphas_by_rel"])
                         probs.append(probs_batch)
+                        pbar_pred.update(len(sentences_batch))
 
 
                     if not sentences:
