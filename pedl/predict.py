@@ -10,10 +10,9 @@ from tqdm import tqdm
 import torch
 from transformers import BertTokenizerFast
 
-from pedl.database import PathwayCommonsDB
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
-from pedl.utils import DataGetter, get_geneid_to_name, chunks, Sentence
+from pedl.utils import DataGetter, get_geneid_to_name, chunks
 
 def main():
     parser = argparse.ArgumentParser()
@@ -75,6 +74,12 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     if args.dbs:
+        try:
+            from pedl.database import PathwayCommonsDB
+        except ImportError:
+            print("Harvesting interactions from databases requires indra."
+                  "Please install via `pip install indra' for obtaining additional interactions from databases.")
+            sys.exit(1)
         logging.info("Preparing databases")
         dbs = [PathwayCommonsDB(i, gene_universe=universe) for i in args.dbs]
     else:
