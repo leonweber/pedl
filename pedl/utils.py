@@ -385,35 +385,41 @@ class LocalPubtatorManager:
         return documents, missing_pmids
 
 
-def get_homolog_mapping(expand_species, protein_universe) -> Dict[str, Set[str]]:
+def get_homologue_mapping(expand_species_names: List[str],
+                          protein_universe: Set[str]) -> Dict[str, Set[str]]:
     """
     Get mapping from genes in `expand_species` that are not in `protein_universe` to all
     homologous gene_id in `protein_universe`
     """
-    homolog_mapping = defaultdict(set)
-    gene_id_to_homologene_id = {}
-    homologene_id_to_cluster = defaultdict(set)
+    species_to_tax_id = {"human": "9606", "mouse": "10090", "rat": "10116",
+                         "zebrafish": "7955"}
+    expand_species = [species_to_tax_id[i] for i in expand_species_names]
+    homologue_mapping = defaultdict(set)
+    gene_id_to_cluster_id = {}
+    cluster_id_to_gene_ids = defaultdict(set)
 
-    with open(root / "data" / "homologene.data") as f:
-        for line in tqdm(f, desc="Obtaining homologs", total=275237):
+    with open(root / "data" / "HOM_AllOrganism.rpt") as f:
+        next(f)
+        for line in f:
             fields = line.strip().split("\t")
             if not fields:
                 continue
-            homologene_id, taxon_id, gene_id = fields[:3]
+            cluster_id = fields[0]
+            taxon_id = fields[2]
+            gene_id = fields[4]
+            if taxon_id in expand_species or gene_id in protein_universe:
+                cluster_id_to_gene_ids[cluster_id].add(gene_id)
             if gene_id in protein_universe:
-                if taxon_id in expand_species or gene_id in protein_universe:
-                    homologene_id_to_cluster[homologene_id].add(gene_id)
-                if gene_id in protein_universe:
-                    gene_id_to_homologene_id[gene_id] = homologene_id
+                gene_id_to_cluster_id[gene_id] = cluster_id
 
         for gene_id in protein_universe:
-            if gene_id in homologene_id_to_cluster:
-                homologene_id = gene_id_to_homologene_id[gene_id]
-                for mapped_gene_id in homologene_id_to_cluster[homologene_id]:
+            if gene_id in gene_id_to_cluster_id:
+                cluster_id = gene_id_to_cluster_id[gene_id]
+                for mapped_gene_id in cluster_id_to_gene_ids[cluster_id]:
                     if mapped_gene_id not in protein_universe:
-                        homolog_mapping[mapped_gene_id].add(gene_id)
+                        homologue_mapping[mapped_gene_id].add(gene_id)
 
-    return homolog_mapping
+    return dict(homologue_mapping)
 
 
 class DataGetter:
@@ -422,28 +428,21 @@ class DataGetter:
     def __init__(self, protein_universe: Set[str],
                  local_pubtator: Optional[Path] = None,
                  n_processes: Optional[int] = None,
-                 cache_documents_for_pairs: Optional[List[Tuple[str, str]]] = None,
                  api_fallback: Optional[bool] = False,
                  expand_species: Optional[List[str]] = None
                  ):
         self.protein_universe = protein_universe
         self.expand_species = expand_species or []
         if self.expand_species:
-            self.homolog_mapping = get_homolog_mapping(self.expand_species,
-                                                       self.protein_universe)
+            self.homologue_mapping = get_homologue_mapping(self.expand_species,
+                                                           self.protein_universe)
         else:
-            self.homolog_mapping = {}
+            self.homologue_mapping = {}
         self.gene2pmid = self.get_gene2pmid()
         self._document_cache = diskcache.Cache(directory=str(cache_root/"document_cache"),
                                                eviction_policy="least-recently-used")
 
         self.api_fallback = api_fallback
-
-        self.cache_pmids = set()
-        if cache_documents_for_pairs:
-            for p1, p2 in cache_documents_for_pairs:
-                shared_pmids = self.gene2pmid[p1] & self.gene2pmid[p2]
-                self.cache_pmids.update(shared_pmids)
 
         self.sentence_splitter = SegtokSentenceSplitter()
         if local_pubtator:
@@ -474,8 +473,8 @@ class DataGetter:
 
                 if gene_id in self.protein_universe:
                     gene2pmid[gene_id].add(pmid)
-                elif gene_id in self.homolog_mapping:
-                    for mapped_gene_id in self.homolog_mapping[gene_id]: # mapped_gene_id is from self.protein_universe
+                elif gene_id in self.homologue_mapping:
+                    for mapped_gene_id in self.homologue_mapping[gene_id]: # mapped_gene_id is from self.protein_universe
                         gene2pmid[mapped_gene_id].add(pmid)
 
         return dict(gene2pmid)
@@ -484,17 +483,18 @@ class DataGetter:
         pmid_to_pmcid = {}
 
         service_root = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
-        ids = ",".join(pmids)
-        response = requests.get(service_root, params={"ids": ids})
-        for record in etree.fromstring(response.content).xpath("//record"):
-            if "pmcid" in record.attrib:
-                pmid_to_pmcid[record.attrib["pmid"]] = record.attrib["pmcid"]
+        for pmid_chunk in chunks(pmids, 200):
+            ids = ",".join(pmid_chunk)
+            response = requests.get(service_root, params={"ids": ids})
+            for record in etree.fromstring(response.content).xpath("//record"):
+                if "pmcid" in record.attrib:
+                    pmid_to_pmcid[record.attrib["pmid"]] = record.attrib["pmcid"]
 
         return pmid_to_pmcid
 
     def get_ids_from_annotation(self, annotation: bioc.BioCAnnotation) -> Set[str]:
         """
-        Extract cuids from `annotation` and expand them with homologs from
+        Extract cuids from `annotation` and expand them with homologues from
         `self.expand_species`.
         """
         if "identifier" in annotation.infons:
@@ -508,7 +508,7 @@ class DataGetter:
 
         expanded_identifiers = identifiers.copy()
         for cuid in identifiers:
-            expanded_identifiers.update(self.homolog_mapping.get(cuid, {}))
+            expanded_identifiers.update(self.homologue_mapping.get(cuid, {}))
 
         return expanded_identifiers
 
@@ -574,39 +574,52 @@ class DataGetter:
         cached_documents = [self._document_cache[i] for i in pmids if i in self._document_cache]
         uncached_pmids = [i for i in pmids if i not in self._document_cache]
 
+        logging.info(f"Retreived {len(cached_documents)}/{len(pmids)} documents from cache")
         return cached_documents, uncached_pmids
 
     def cache_documents(self, documents: List[bioc.BioCDocument]) -> None:
+        logging.info(f"Caching {len(documents)} documents")
         for document in documents:
-            pmid = get_pmid(document)
-            if pmid in self.cache_pmids:
-                self._document_cache[pmid] = document
+            pmid = get_pmid(document)[0]
+            self._document_cache[pmid] = document
 
     def get_documents_from_api(self, pmids):
         service_root = "https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/biocxml"
-        documents = []
         pmids = list(pmids)
 
-        pbar = tqdm(desc="Fetching documents", total=len(pmids))
-        for pmid_chunk in list(chunks(pmids, self.CHUNK_SIZE)):
-            cached_documents, uncached_pmids = self.maybe_get_from_cache(pmid_chunk)
-            pmid_to_pmcid = self.maybe_map_to_pmcid(pmid_chunk)
-            pmids = [i for i in uncached_pmids if i not in pmid_to_pmcid]
-            pmcids = [pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid]
+        documents, uncached_pmids = self.maybe_get_from_cache(pmids)
+        pmid_to_pmcid = self.maybe_map_to_pmcid(pmids)
 
-            result = requests.get(service_root, params={"pmids": ",".join(pmids),
-                                               "pmcids": ",".join(pmcids),
+        pbar = tqdm(desc="Fetching documents", total=len(uncached_pmids))
+
+        pmids_to_retreive = [i for i in uncached_pmids if i not in pmid_to_pmcid]
+        pmcids_to_retreive = [pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid]
+
+        for pmid_chunk in list(chunks(pmids_to_retreive, self.CHUNK_SIZE)):
+
+            result = requests.get(service_root, params={"pmids": ",".join(pmid_chunk),
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
-            self.cache_documents(collection.documents)
             documents += collection.documents
             pbar.update(len(pmid_chunk))
+            self.cache_documents(collection.documents)
+
+        for pmcid_chunk in list(chunks(pmcids_to_retreive, self.CHUNK_SIZE)):
+
+            result = requests.get(service_root, params={"pmcids": ",".join(pmcid_chunk),
+                                                        "concepts": "gene"})
+            collection = bioc.loads(result.content.decode())
+            documents += collection.documents
+            pbar.update(len(pmcid_chunk))
+            self.cache_documents(collection.documents)
 
         return documents
 
     def get_documents_from_local(self, pmids):
         assert isinstance(self.local_pubtator, LocalPubtatorManager)
-        documents, missing_pmids = self.local_pubtator.get_documents(pmids)
+        documents, uncached_pmids  = self.maybe_get_from_cache(pmids)
+        retreived_docs, missing_pmids = self.local_pubtator.get_documents(uncached_pmids)
+        documents += retreived_docs
         if self.api_fallback:
             documents += self.get_documents_from_api(missing_pmids)
         else:
@@ -614,6 +627,7 @@ class DataGetter:
                 warnings.warn(f"{len(missing_pmids)}/{len(pmids)} documents could not be found in local PubTator."
                               f" Use api_fallback to retrieve missing documents from API.")
 
+        self.cache_documents(documents)
         return documents
 
     def get_sentence(self, passage, offset_prot1, offset_prot2, len_prot1, len_prot2, pmid):

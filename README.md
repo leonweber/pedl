@@ -14,7 +14,9 @@ pip install pedl
 ```
 
 ## Usage
-
+PEDL expects proteins to be identified via entrez gene ids. 
+These can be looked up via standard webinterfaces like
+[NCBI Gene](https://www.ncbi.nlm.nih.gov/gene).
 
 ### Prediction
 
@@ -47,17 +49,32 @@ pip install pedl
   searches for interactions between the proteins in `proteins.txt` and 7099, as well as interactions between proteins in `proteins.txt` and 222344
   
 
-* Search for interactions in multiple species via the orthologs of the provided proteins:
+* If the provided gene ids are from human, mouse, rat or zebrafish, PEDL can automatically
+  search for interactions in the other model species (currently human, mouse, rat and zebrafish)
+  via homology classes defined by the [Alliance of Genome Resources](http://www.informatics.jax.org/homology.shtml):
+  
     ```bash
-    pedl --p1 5052 --p2 7099 --out PEDL_predictions --expand_species 10090 10116
+    pedl --p1 5052 --p2 7099 --out PEDL_predictions --expand_species mouse zebrafish
     ```
-    would also include interactions in Mouse and Rat
+    would also include interactions in mouse and zebrafish.
+
+
+* It is also possible to query PathwayCommons for interactions. 
+  This requires the python package `indra` to be installed, which can be achieved
+  via `pip install indra`:
+  ```bash
+    pedl --p1 5052 --p2 7099 --out PEDL_predictions --dbs pid reactome kegg
+  ```
+  to query `pid` `reactome` and `kegg`. See `--help` for the full list of available
+  databases.
+  
+  
 
 
 ### Prediction for large gene lists  
 If you need to test for more than 100 interactions at once, you have to use a local copy 
 of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
-Unpack the PubTatorCentral files and point PEDL towards the file:
+Unpack the PubTatorCentral files and point PEDL towards the files:
   ```bash
   pedl --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions --pubtator [PATH_TO_PUBTATOR]
   ```

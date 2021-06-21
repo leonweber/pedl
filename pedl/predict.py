@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import itertools
 import logging
 import os
 import sys
@@ -48,9 +49,12 @@ def main():
     else:
         p2s = args.p2
 
-    n_queries = len(p1s) * len(p2s) * 2
-    if n_queries > 100 and not args.pubtator:
-        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {n_queries} pairs. Aborting.")
+    pairs_to_query = []
+    for p1 in p1s:
+        for p2 in p2s:
+            pairs_to_query.append((p1, p2))
+    if len(pairs_to_query) > 100 and not args.pubtator:
+        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(pairs_to_query)} pairs. Aborting.")
         sys.exit(1)
 
     model = BertForDistantSupervision.from_pretrained(args.model)
@@ -62,7 +66,8 @@ def main():
     universe = set(p1s + p2s)
     data_getter = DataGetter(universe, local_pubtator=args.pubtator,
                              api_fallback=args.api_fallback,
-                             expand_species=args.expand_species)
+                             expand_species=args.expand_species
+                             )
     tokenizer = BertTokenizerFast.from_pretrained(args.model)
     tokenizer.add_special_tokens({ 'additional_special_tokens': ['<e1>','</e1>', '<e2>', '</e2>'] +
                                                                      [f'<protein{i}/>' for i in range(1, 47)]})
