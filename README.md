@@ -22,31 +22,31 @@ These can be looked up via standard webinterfaces like
 
 * Interactions between single proteins:
     ```bash
-    pedl --p1 5052 --p2 7099 --out PEDL_predictions
+    pedl --p1 29126 --p2 54918 --out PEDL_predictions
     ```
   Results:
   ```bash
   $ ls PEDL_predictions/
-  PRDX1-TLR4.txt  TLR4-PRDX1.txt
+  CD274-CMTM6.txt  CMTM6-CD274.txt
   
-  $ head -n1 PEDL_predictions/PRDX1-TLR4.txt
-  in-complex-with 0.93    4872721 <e1>PRDX1</e1> functioned as a ligand for <e2>Toll-like receptor 4</e2> to enhance HIF-1alpha expression and HIF-1 binding to the promoter of the VEGF gene in endothelial cells, thereby potentiating VEGF expression.    PEDL
+  $ head -n1 PEDL_predictions/CD274-CMTM6.txt
+  in-complex-with	0.98	6978769	A PD-L1 antibody, H1A, was developed to destabilize PD-L1 by disrupting the <e1>PD-L1</e1> stabilizer <e2>CMTM6</e2>.	PEDL
   ```
 
 
 
 * Pairwise interactions between multiple proteins:
   ```bash
-  pedl --p1 5052 --p2  7099 222344  --out PEDL_predictions
+  pedl --p1 29126 --p2  54918 920  --out PEDL_predictions
   ```
-  searches for interactions between 5052 and 7099, and for interactions between 5052 and 222344
+  searches for interactions between 29126 and 54918, and for interactions between 29126 and 920
 
 
 * Read protein lists from files:
   ```bash
-  pedl --p1 proteins.txt --p2  7099 222344  --out PEDL_predictions
+  pedl --p1 proteins.txt --p2  54918 920  --out PEDL_predictions
   ```
-  searches for interactions between the proteins in `proteins.txt` and 7099, as well as interactions between proteins in `proteins.txt` and 222344
+  searches for interactions between the proteins in `proteins.txt` and 54918, as well as interactions between proteins in `proteins.txt` and 920
   
 
 * If the provided gene ids are from human, mouse, rat or zebrafish, PEDL can automatically
@@ -54,7 +54,7 @@ These can be looked up via standard webinterfaces like
   via homology classes defined by the [Alliance of Genome Resources](http://www.informatics.jax.org/homology.shtml):
   
     ```bash
-    pedl --p1 5052 --p2 7099 --out PEDL_predictions --expand_species mouse zebrafish
+    pedl --p1 29126 --p2 54918 --out PEDL_predictions --expand_species mouse zebrafish
     ```
     would also include interactions in mouse and zebrafish.
 
@@ -63,7 +63,7 @@ These can be looked up via standard webinterfaces like
   This requires the python package `indra` to be installed, which can be achieved
   via `pip install indra`:
   ```bash
-    pedl --p1 5052 --p2 7099 --out PEDL_predictions --dbs pid reactome kegg
+    pedl --p1 29126 --p2 54918 --out PEDL_predictions --dbs pid reactome kegg
   ```
   to query `pid` `reactome` and `kegg`. See `--help` for the full list of available
   databases.
