@@ -14,6 +14,8 @@ setup(
     license='MIT',
     packages=find_packages(),
     install_requires=required,
+    long_description=open("README.md", "r", encoding="utf-8").read(),
+    long_description_content_type="text/markdown",
     entry_points={"console_scripts": ["pedl=pedl.predict:main"]},
     package_data={"pedl": ["data/*"]}
 )

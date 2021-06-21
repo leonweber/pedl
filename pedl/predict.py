@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--dbs', nargs="*", choices=["pid", "reactome", "netpath",
                                                      "kegg", "panther", "humancyc"])
     parser.add_argument('--pubtator', type=Path)
-    parser.add_argument('--device', default='cpu')
+    parser.add_argument('--device', default=None)
     parser.add_argument('--topk', type=int, default=None)
     parser.add_argument('--cutoff', type=float, default=0.01)
     parser.add_argument('--batch_size', type=int, default=50)
@@ -57,8 +57,14 @@ def main():
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(pairs_to_query)} pairs. Aborting.")
         sys.exit(1)
 
+    if not args.device:
+        if torch.cuda.is_available():
+            args.device = "cuda"
+        else:
+            args.device = "cpu"
+
     model = BertForDistantSupervision.from_pretrained(args.model)
-    if args.device == "cuda":
+    if "cuda" in args.device:
         model.bert = nn.DataParallel(model.bert)
     model.eval()
     model.to(args.device)
