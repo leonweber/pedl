@@ -102,8 +102,8 @@ def main():
 
         for p1 in current_p1s:
             for p2 in current_p2s:
-                name1 = geneid_to_name[p1]
-                name2 = geneid_to_name[p2]
+                name1 = geneid_to_name.get(p1, p1)
+                name2 = geneid_to_name.get(p2, p2)
                 pbar.set_description(f"{name1}-{name2}")
                 if p1 == p2:
                     continue
