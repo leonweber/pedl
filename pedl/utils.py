@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
 
+import diskcache
 import requests
 from lxml import etree
 import bioc
@@ -422,7 +423,6 @@ class DataGetter:
                  local_pubtator: Optional[Path] = None,
                  n_processes: Optional[int] = None,
                  cache_documents_for_pairs: Optional[List[Tuple[str, str]]] = None,
-                 cache_size: Optional[int] = 10000,
                  api_fallback: Optional[bool] = False,
                  expand_species: Optional[List[str]] = None
                  ):
@@ -434,7 +434,9 @@ class DataGetter:
         else:
             self.homolog_mapping = {}
         self.gene2pmid = self.get_gene2pmid()
-        self._document_cache = {}
+        self._document_cache = diskcache.Cache(directory=str(cache_root/"document_cache"),
+                                               eviction_policy="least-recently-used")
+
         self.api_fallback = api_fallback
 
         self.cache_pmids = set()
@@ -444,7 +446,6 @@ class DataGetter:
                 self.cache_pmids.update(shared_pmids)
 
         self.sentence_splitter = SegtokSentenceSplitter()
-        self.cache_size = cache_size
         if local_pubtator:
             self.local_pubtator = LocalPubtatorManager(local_pubtator,
                                                        n_processes=n_processes)
@@ -576,15 +577,9 @@ class DataGetter:
         return cached_documents, uncached_pmids
 
     def cache_documents(self, documents: List[bioc.BioCDocument]) -> None:
-        if self.cache_size is not None:
-            n_docs_too_many = len(documents) + len(self._document_cache) - self.cache_size
-            if n_docs_too_many > 0:
-                for k in list(self._document_cache.keys())[:n_docs_too_many]:
-                    del self._document_cache[k]
-
         for document in documents:
             pmid = get_pmid(document)
-            if pmid not in self._document_cache and pmid in self.cache_pmids:
+            if pmid in self.cache_pmids:
                 self._document_cache[pmid] = document
 
     def get_documents_from_api(self, pmids):
@@ -606,7 +601,6 @@ class DataGetter:
             self.cache_documents(collection.documents)
             documents += collection.documents
             pbar.update(len(pmid_chunk))
-            break
 
         return documents
 

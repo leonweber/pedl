@@ -6,3 +6,4 @@ transformers>=4.6
 lxml
 bioc
 segtok
+diskcache
