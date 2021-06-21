@@ -590,7 +590,10 @@ class DataGetter:
         documents, uncached_pmids = self.maybe_get_from_cache(pmids)
         pmid_to_pmcid = self.maybe_map_to_pmcid(pmids)
 
-        pbar = tqdm(desc="Fetching documents", total=len(uncached_pmids))
+        if len(uncached_pmids) > self.CHUNK_SIZE:
+            pbar = tqdm(desc="Fetching documents", total=len(uncached_pmids))
+        else:
+            pbar = None
 
         pmids_to_retreive = [i for i in uncached_pmids if i not in pmid_to_pmcid]
         pmcids_to_retreive = [pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid]
@@ -601,7 +604,8 @@ class DataGetter:
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
             documents += collection.documents
-            pbar.update(len(pmid_chunk))
+            if pbar:
+                pbar.update(len(pmid_chunk))
             self.cache_documents(collection.documents)
 
         for pmcid_chunk in list(chunks(pmcids_to_retreive, self.CHUNK_SIZE)):
@@ -610,7 +614,8 @@ class DataGetter:
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
             documents += collection.documents
-            pbar.update(len(pmcid_chunk))
+            if pbar:
+                pbar.update(len(pmcid_chunk))
             self.cache_documents(collection.documents)
 
         return documents

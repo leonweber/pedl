@@ -112,10 +112,12 @@ def main():
                 name2 = geneid_to_name.get(p2, p2)
                 pbar.set_description(f"{name1}-{name2}")
                 if p1 == p2:
+                    pbar.update()
                     continue
 
                 processed_db_results = set()
-                with open(args.out / f"{name1}-{name2}.txt", "w") as f:
+                path_out = args.out / f"{name1}-{name2}.txt"
+                with open(path_out, "w") as f:
                     for db in dbs:
                         stmts = db.get_statements(p1, p2)
                         for stmt in stmts:
@@ -131,8 +133,10 @@ def main():
                     sentences = sorted(data_getter.get_sentences(p1, p2),
                                        key=lambda x: len(x.text))
 
-
-                    pbar_pred = tqdm(desc="Predicting", total=len(sentences))
+                    if len(sentences) > args.batch_size:
+                        pbar_pred = tqdm(desc="Predicting", total=len(sentences))
+                    else:
+                        pbar_pred = None
                     for sentences_batch in list(chunks(sentences, args.batch_size)):
                         tensors = tokenizer.batch_encode_plus([i.text_blinded for i in sentences_batch],
                                                               truncation=True, max_length=512)
@@ -145,15 +149,22 @@ def main():
                             x, meta = model(input_ids, attention_mask)
                         probs_batch = torch.sigmoid(meta["alphas_by_rel"])
                         probs.append(probs_batch)
-                        pbar_pred.update(len(sentences_batch))
+                        if pbar_pred:
+                            pbar_pred.update(len(sentences_batch))
 
 
                     if not sentences:
+                        pbar.update()
+                        if os.path.getsize(path_out) == 0:
+                            os.remove(path_out)
                         continue
 
                     probs = torch.cat(probs)
 
                     if (probs < args.cutoff).all():
+                        pbar.update()
+                        if os.path.getsize(path_out) == 0:
+                            os.remove(path_out)
                         continue
 
                     processed_sentences = set()
@@ -167,7 +178,10 @@ def main():
                             if sentence_signature not in processed_sentences:
                                 f.write(f"{label}\t{max_score.item():.2f}\t{sentence.pmid}\t{sentence.text}\tPEDL\n\n")
                             processed_sentences.add(sentence_signature)
+
                 pbar.update()
+                if os.path.getsize(path_out) == 0:
+                    os.remove(path_out)
 
 
 if __name__ == '__main__':
