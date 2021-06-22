@@ -486,9 +486,14 @@ class DataGetter:
         for pmid_chunk in chunks(pmids, 200):
             ids = ",".join(pmid_chunk)
             response = requests.get(service_root, params={"ids": ids})
-            for record in etree.fromstring(response.content).xpath("//record"):
-                if "pmcid" in record.attrib:
-                    pmid_to_pmcid[record.attrib["pmid"]] = record.attrib["pmcid"]
+            try:
+                for record in etree.fromstring(response.content).xpath("//record"):
+                    if "pmcid" in record.attrib:
+                        pmid_to_pmcid[record.attrib["pmid"]] = record.attrib["pmcid"]
+            except etree.XMLSyntaxError:
+                warnings.warn("Failed to parse PubTator response."
+                              " You are probably issuing too many requests."
+                              " Please use a local copy of PubTator or disable api_fallback, if you already do.")
 
         return pmid_to_pmcid
 
