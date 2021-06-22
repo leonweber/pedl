@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import warnings
 from collections import defaultdict
+from operator import itemgetter
 from pathlib import Path
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
@@ -746,4 +747,27 @@ def get_gene_mapping(from_db: str, to_db: str):
                     final_mapping[from_id].add(to_id)
 
     return dict(final_mapping)
+
+
+def build_summary_table(raw_dir: Path) -> List[Tuple[str, float]]:
+    rel_to_score = defaultdict(float)
+
+    files = raw_dir.glob("*.txt")
+    for file in files:
+        with file.open() as f:
+            p1, p2 = file.name.split("-")
+            for line in f:
+                fields = line.strip().split()
+                if fields:
+                    rel = f"{p1} {fields[0]} {p2}"
+                    rel_to_score[rel] += float(fields[1])
+
+    return sorted(rel_to_score.items(), key=itemgetter(1), reverse=True)
+
+
+
+
+
+
+
 

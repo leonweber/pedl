@@ -13,7 +13,8 @@ from transformers import BertTokenizerFast
 
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
-from pedl.utils import DataGetter, get_geneid_to_name, chunks
+from pedl.utils import DataGetter, get_geneid_to_name, chunks, build_summary_table
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -182,6 +183,11 @@ def main():
                 pbar.update()
                 if os.path.getsize(path_out) == 0:
                     os.remove(path_out)
+
+    with open(args.out / "summary.tsv", "w") as f:
+        for rel, score in build_summary_table(args.out):
+            f.write(f"{rel}\t{score:.2f}\n")
+
 
 
 if __name__ == '__main__':
