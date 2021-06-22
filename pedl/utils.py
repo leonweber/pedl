@@ -628,9 +628,7 @@ class DataGetter:
 
     def get_documents_from_local(self, pmids):
         assert isinstance(self.local_pubtator, LocalPubtatorManager)
-        documents, uncached_pmids  = self.maybe_get_from_cache(pmids)
-        retreived_docs, missing_pmids = self.local_pubtator.get_documents(uncached_pmids)
-        documents += retreived_docs
+        documents, missing_pmids = self.local_pubtator.get_documents(pmids)
         if self.api_fallback:
             documents += self.get_documents_from_api(missing_pmids)
         else:
@@ -638,7 +636,6 @@ class DataGetter:
                 warnings.warn(f"{len(missing_pmids)}/{len(pmids)} documents could not be found in local PubTator."
                               f" Use api_fallback to retrieve missing documents from API.")
 
-        self.cache_documents(documents)
         return documents
 
     def get_sentence(self, passage, offset_prot1, offset_prot2, len_prot1, len_prot2, pmid):
