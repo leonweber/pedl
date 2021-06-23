@@ -1,19 +1,16 @@
 #!/usr/bin/env python
 
 import argparse
-import itertools
 import logging
 import os
 import sys
 from pathlib import Path
 
-import click
 from torch import nn
 from tqdm import tqdm
 import torch
 from transformers import BertTokenizerFast
 
-import pedl
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
 from pedl.utils import DataGetter, get_geneid_to_name, chunks, build_summary_table
@@ -52,7 +49,6 @@ def predict(args):
             pairs_to_query.append((p1, p2))
             if not args.skip_reverse:
                 pairs_to_query.append((p2, p1))
-    pairs_to_query = pairs_to_query[:10]
     if len(pairs_to_query) > 100 and not args.pubtator:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(pairs_to_query)} pairs. Aborting.")
         sys.exit(1)
