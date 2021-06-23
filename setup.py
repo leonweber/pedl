@@ -5,7 +5,7 @@ with open("requirements.txt") as f:
 
 setup(
     name='pedl',
-    version='0.2.0',
+    version='0.2.1',
     description='Search the biomedical literature for protein interactions and'
                 'protein associations.',
     url='https://github.com/leonweber/pedl',
