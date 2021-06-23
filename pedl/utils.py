@@ -752,11 +752,11 @@ def build_summary_table(raw_dir: Path) -> List[Tuple[str, float]]:
     files = raw_dir.glob("*.txt")
     for file in files:
         with file.open() as f:
-            p1, p2 = file.name.split("-")
+            p1, p2 = file.name.replace(".txt", "").split("-")
             for line in f:
                 fields = line.strip().split()
                 if fields:
-                    rel = f"{p1} {fields[0]} {p2}"
+                    rel = f"{p1}\t{fields[0]}\t{p2}"
                     rel_to_score[rel] += float(fields[1])
 
     return sorted(rel_to_score.items(), key=itemgetter(1), reverse=True)
