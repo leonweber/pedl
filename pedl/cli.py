@@ -13,7 +13,8 @@ from transformers import BertTokenizerFast
 
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
-from pedl.utils import DataGetter, get_geneid_to_name, chunks, build_summary_table, get_hgnc_symbol_to_gene_id
+from pedl.utils import DataGetter, get_geneid_to_name, build_summary_table, \
+    get_hgnc_symbol_to_gene_id, chunks
 
 
 def summarize(args):
@@ -93,7 +94,7 @@ def predict(args):
                              )
     tokenizer = BertTokenizerFast.from_pretrained(args.model)
     tokenizer.add_special_tokens({ 'additional_special_tokens': ['<e1>','</e1>', '<e2>', '</e2>'] +
-                                                                     [f'<protein{i}/>' for i in range(1, 47)]})
+                                                                [f'<protein{i}/>' for i in range(1, 47)]})
     model.config.e1_id = tokenizer.convert_tokens_to_ids("<e1>")
     model.config.e2_id = tokenizer.convert_tokens_to_ids("<e2>")
 
@@ -138,30 +139,28 @@ def predict(args):
                     processed_db_results.add(db_result)
 
             probs = []
-            sentences = sorted(data_getter.get_sentences(p1, p2),
-                               key=lambda x: len(x.text))
+            all_sentences = []
+            processed_sentences = set()
 
-            if len(sentences) > args.batch_size:
-                pbar_pred = tqdm(desc="Predicting", total=len(sentences))
-            else:
-                pbar_pred = None
-            for sentences_batch in list(chunks(sentences, args.batch_size)):
-                tensors = tokenizer.batch_encode_plus([i.text_blinded for i in sentences_batch],
-                                                      truncation=True, max_length=512)
-                max_length = max(len(i) for i in tensors["input_ids"])
-                tensors = tokenizer.pad(tensors, max_length=max_length,
-                                        return_tensors="pt")
-                input_ids = tensors["input_ids"].to(args.device)
-                attention_mask = tensors["attention_mask"].to(args.device)
-                with torch.no_grad():
-                    x, meta = model(input_ids, attention_mask)
-                probs_batch = torch.sigmoid(meta["alphas_by_rel"])
-                probs.append(probs_batch)
-                if pbar_pred:
-                    pbar_pred.update(len(sentences_batch))
+            for sentences_chunk in data_getter.get_sentences(p1 ,p2):
+                sentences = sorted(sentences_chunk, key=lambda x: len(x.text))
+                sentences = [i for i in sentences if i.text not in processed_sentences]
+                processed_sentences.update(i.text for i in sentences)
+                all_sentences += sentences
+                for sentences_batch in chunks(sentences, args.batch_size):
+                    tensors = tokenizer.batch_encode_plus([i.text_blinded for i in sentences_batch],
+                                                          truncation=True, max_length=512)
+                    max_length = max(len(i) for i in tensors["input_ids"])
+                    tensors = tokenizer.pad(tensors, max_length=max_length,
+                                            return_tensors="pt")
+                    input_ids = tensors["input_ids"].to(args.device)
+                    attention_mask = tensors["attention_mask"].to(args.device)
+                    with torch.no_grad():
+                        x, meta = model(input_ids, attention_mask)
+                    probs_batch = torch.sigmoid(meta["alphas_by_rel"])
+                    probs.append(probs_batch)
 
-
-            if not sentences:
+            if not all_sentences:
                 pbar.update()
                 if os.path.getsize(path_out) == 0:
                     os.remove(path_out)
@@ -175,17 +174,13 @@ def predict(args):
                     os.remove(path_out)
                 continue
 
-            processed_sentences = set()
             for max_score in torch.sort(probs.view(-1), descending=True)[0]:
                 if max_score.item() < args.cutoff:
                     continue
                 for i, j in zip(*torch.where(probs == max_score)):
                     label = PEDLDataset.id_to_label[j.item()]
-                    sentence = sentences[i]
-                    sentence_signature = (sentence.get_unmarked_text(), label)
-                    if sentence_signature not in processed_sentences:
-                        f.write(f"{label}\t{max_score.item():.2f}\t{sentence.pmid}\t{sentence.text}\tPEDL\n\n")
-                    processed_sentences.add(sentence_signature)
+                    sentence = all_sentences[i]
+                    f.write(f"{label}\t{max_score.item():.2f}\t{sentence.pmid}\t{sentence.text}\tPEDL\n\n")
 
         pbar.update()
         if os.path.getsize(path_out) == 0:
@@ -213,6 +208,7 @@ def main():
     parser_predict.add_argument('--skip_reverse', action="store_true")
     parser_predict.add_argument('--verbose', action="store_true")
     parser_predict.add_argument('--expand_species', nargs="*")
+    parser_predict.add_argument('--multi_sentence', action="store_true")
     parser_predict.set_defaults(func=predict)
 
     parser_summarize = subparsers.add_parser("summarize")

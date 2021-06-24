@@ -365,25 +365,25 @@ class LocalPubtatorManager:
             print(f"Done: {file}")
             q.put(docs)
 
-    def get_documents(self, pmids: List[str]):
-        documents = []
+    def get_documents(self, pmids: List[str], chunk_size: int):
 
         available_pmids = [i for i in pmids if i in self.index]
-        missing_pmids = [i for i in pmids if i not in available_pmids]
 
         pmids = set(pmids)
         self.logger.info(f"Getting {len(available_pmids)} documents from local PubTator")
-        for pmid in available_pmids:
-            file = self.index[pmid][0]
-            doc_idx = self.index[pmid][1]
-            with open(self.path / file) as f:
-                lines = f.readlines()
-                document = bioc.loads(lines[0] + lines[doc_idx+1] + lines[-1]).documents[0]
-                pmid = get_pmid(document)[0]
-                assert pmid in pmids
-                documents.append(document)
+        for pmid_chunk in chunks(available_pmids, chunk_size):
+            documents = []
+            for pmid in pmid_chunk:
+                file = self.index[pmid][0]
+                doc_idx = self.index[pmid][1]
+                with open(self.path / file) as f:
+                    lines = f.readlines()
+                    document = bioc.loads(lines[0] + lines[doc_idx+1] + lines[-1]).documents[0]
+                    pmid = get_pmid(document)[0]
+                    assert pmid in pmids
+                    documents.append(document)
 
-        return documents, missing_pmids
+            yield documents
 
 
 def get_homologue_mapping(expand_species_names: List[str],
@@ -561,7 +561,6 @@ class DataGetter:
         return sentences
 
     def get_sentences(self, protein1, protein2):
-        sentences = []
         if protein1 not in self.gene2pmid or protein2 not in self.gene2pmid:
             return []
         pmids = sorted(self.gene2pmid[protein1] & self.gene2pmid[protein2])
@@ -569,23 +568,19 @@ class DataGetter:
             return []
 
         if self.local_pubtator is not None:
-            documents = self.get_documents_from_local(pmids)
+            documents_it = self.get_documents_from_local(pmids)
         else:
-            documents = self.get_documents_from_api(pmids)
-        for document in documents:
-            sentences += self.get_sentences_from_document(protein1=protein1,
-                                                          protein2=protein2,
-                                                          document=document)
+            documents_it = self.get_documents_from_api(pmids)
 
-        return sentences
+        for documents in documents_it:
+            sentences = []
+            for document in documents:
+                sentences += self.get_sentences_from_document(protein1=protein1,
+                                                       protein2=protein2,
+                                                       document=document)
+            yield sentences
 
 
-    def maybe_get_from_cache(self, pmids: List[str]) -> Tuple[List[bioc.BioCDocument], List[str]]:
-        cached_documents = [self._document_cache[i] for i in pmids if i in self._document_cache]
-        uncached_pmids = [i for i in pmids if i not in self._document_cache]
-
-        logging.info(f"Retreived {len(cached_documents)}/{len(pmids)} documents from cache")
-        return cached_documents, uncached_pmids
 
     def cache_documents(self, documents: List[bioc.BioCDocument]) -> None:
         logging.info(f"Caching {len(documents)} documents")
@@ -597,13 +592,20 @@ class DataGetter:
         service_root = "https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/biocxml"
         pmids = list(pmids)
 
-        documents, uncached_pmids = self.maybe_get_from_cache(pmids)
-        pmid_to_pmcid = self.maybe_map_to_pmcid(pmids)
-
-        if len(uncached_pmids) > self.CHUNK_SIZE:
-            pbar = tqdm(desc="Fetching documents", total=len(uncached_pmids))
+        if len(pmids) > self.CHUNK_SIZE:
+            pbar = tqdm(desc="Reading", total=len(pmids))
         else:
             pbar = None
+
+        cached_pmids = [i for i in pmids if i in self._document_cache]
+
+        for pmid_chunk in chunks(cached_pmids, self.CHUNK_SIZE):
+            pbar.update(len(pmid_chunk))
+            yield [self._document_cache[i] for i in pmid_chunk]
+
+        uncached_pmids = [i for i in pmids if i not in cached_pmids]
+        pmid_to_pmcid = self.maybe_map_to_pmcid(uncached_pmids)
+
 
         pmids_to_retreive = [i for i in uncached_pmids if i not in pmid_to_pmcid]
         pmcids_to_retreive = [pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid]
@@ -613,7 +615,7 @@ class DataGetter:
             result = requests.get(service_root, params={"pmids": ",".join(pmid_chunk),
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
-            yield from collection.documents
+            yield collection.documents
             if pbar:
                 pbar.update(len(pmid_chunk))
             self.cache_documents(collection.documents)
@@ -623,24 +625,17 @@ class DataGetter:
             result = requests.get(service_root, params={"pmcids": ",".join(pmcid_chunk),
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
-            yield from collection.documents
+            yield collection.documents
             if pbar:
                 pbar.update(len(pmcid_chunk))
             self.cache_documents(collection.documents)
 
     def get_documents_from_local(self, pmids):
-        assert isinstance(self.local_pubtator, LocalPubtatorManager)
-        documents, missing_pmids = self.local_pubtator.get_documents(pmids)
-        if self.api_fallback:
-            documents += self.get_documents_from_api(missing_pmids)
-        else:
-            if len(missing_pmids):
-                warnings.warn(f"{len(missing_pmids)}/{len(pmids)} documents could not be found in local PubTator."
-                              f" Use api_fallback to retrieve missing documents from API.")
+        yield from self.local_pubtator.get_documents(pmids)
 
-        return documents
 
-    def get_sentence(self, passage, offset_prot1, offset_prot2, len_prot1, len_prot2, pmid):
+    def get_sentence(self, passage, offset_prot1, offset_prot2, len_prot1, len_prot2, pmid,
+                     allow_multi_sentence=False):
 
         if offset_prot1 < offset_prot2:
             left_start = offset_prot1
@@ -663,6 +658,8 @@ class DataGetter:
         if snippet_start is None:
             return None
 
+        if not allow_multi_sentence and not any(snippet_start == i.start_pos and snippet_end == i.end_pos for i in sents):
+            return None # is multi sentence
 
         offsets = []
         lengths = []
