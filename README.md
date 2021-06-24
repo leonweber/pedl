@@ -19,7 +19,8 @@ PEDL supports two commands `pedl predict` and `pedl summarize`. The default work
 for each pair in a separate file.
 The contents of these files can then be aggregated into a single csv-file with `summarize`.
 
-PEDL expects proteins to be identified via entrez gene ids. 
+PEDL expects proteins to be identified either via HGNC symbols (for human genes)
+or entrez gene ids. 
 These can be looked up via standard webinterfaces like
 [NCBI Gene](https://www.ncbi.nlm.nih.gov/gene).
 

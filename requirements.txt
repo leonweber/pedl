@@ -3,7 +3,7 @@ numpy
 tqdm
 torch>=1.8
 transformers>=4.6
-lxml
+lxml~=4.4.1
 bioc
 segtok
 diskcache

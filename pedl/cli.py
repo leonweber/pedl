@@ -13,7 +13,7 @@ from transformers import BertTokenizerFast
 
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
-from pedl.utils import DataGetter, get_geneid_to_name, chunks, build_summary_table
+from pedl.utils import DataGetter, get_geneid_to_name, chunks, build_summary_table, get_hgnc_symbol_to_gene_id
 
 
 def summarize(args):
@@ -22,11 +22,15 @@ def summarize(args):
     else:
         file_out = args.out
     with open(file_out, "w") as f:
-        for rel, score in build_summary_table(args.path_to_files):
-            f.write(f"{rel}\t{score:.2f}\n")
+        f.write(f"p1\tassociation type\tp2\tscore (sum)\tscore (max)\n")
+        for row in build_summary_table(args.path_to_files, score_cutoff=args.cutoff,
+                                       no_association_type=args.no_association_type):
+            f.write(f"{row[0]}\t{row[1]}\t{row[2]}\t{row[3]:.2f}\t{row[4]:.2f}\n")
 
 
 def predict(args):
+
+    hgnc_to_gene_id = get_hgnc_symbol_to_gene_id()
 
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
@@ -43,9 +47,26 @@ def predict(args):
     else:
         p2s = args.p2
 
-    pairs_to_query = []
+
+    maybe_mapped_p1s = []
     for p1 in p1s:
-        for p2 in p2s:
+        if not p1.isnumeric():
+            assert p1 in hgnc_to_gene_id, f"{p1} is neither a valid HGNC symbol nor a Entrez gene id"
+            maybe_mapped_p1s.append(hgnc_to_gene_id[p1])
+        else:
+            maybe_mapped_p1s.append(p1)
+
+    maybe_mapped_p2s = []
+    for p2 in p2s:
+        if not p2.isnumeric():
+            assert p2 in hgnc_to_gene_id, f"{p2} is neither a valid HGNC symbol nor a Entrez gene id"
+            maybe_mapped_p2s.append(hgnc_to_gene_id[p2])
+        else:
+            maybe_mapped_p2s.append(p2)
+
+    pairs_to_query = []
+    for p1 in maybe_mapped_p1s:
+        for p2 in maybe_mapped_p2s:
             pairs_to_query.append((p1, p2))
             if not args.skip_reverse:
                 pairs_to_query.append((p2, p1))
@@ -65,7 +86,7 @@ def predict(args):
     model.eval()
     model.to(args.device)
 
-    universe = set(p1s + p2s)
+    universe = set(maybe_mapped_p1s + maybe_mapped_p2s)
     data_getter = DataGetter(universe, local_pubtator=args.pubtator,
                              api_fallback=args.api_fallback,
                              expand_species=args.expand_species
@@ -199,6 +220,8 @@ def main():
 
     parser_summarize.add_argument("path_to_files", type=Path)
     parser_summarize.add_argument("--out", type=Path, default=None)
+    parser_summarize.add_argument("--cutoff", type=float, default=0.0)
+    parser_summarize.add_argument('--no_association_type', action="store_true")
 
     args = parser.parse_args()
 

@@ -518,50 +518,50 @@ class DataGetter:
 
         return expanded_identifiers
 
-    def get_sentences_from_documents(self, protein1, protein2, documents):
+    def get_sentences_from_document(self, protein1, protein2, document):
         sentences = []
-        for document in documents:
-            for passage in document.passages:
-                protein1_locations = []
-                protein1_lengths = []
-                protein2_locations = []
-                protein2_lengths = []
-                for annotation in passage.annotations:
-                    if annotation.infons["type"] != "Gene":
-                        continue
+        for passage in document.passages:
+            protein1_locations = []
+            protein1_lengths = []
+            protein2_locations = []
+            protein2_lengths = []
+            for annotation in passage.annotations:
+                if annotation.infons["type"] != "Gene":
+                    continue
 
-                    ids = self.get_ids_from_annotation(annotation)
+                ids = self.get_ids_from_annotation(annotation)
 
-                    if protein1 in ids:
-                        for loc in annotation.locations:
-                            protein1_locations.append(loc.offset - passage.offset)
-                            protein1_lengths.append(loc.length)
-                    if protein2 in ids:
-                        for loc in annotation.locations:
-                            protein2_locations.append(loc.offset - passage.offset)
-                            protein2_lengths.append(loc.length)
+                if protein1 in ids:
+                    for loc in annotation.locations:
+                        protein1_locations.append(loc.offset - passage.offset)
+                        protein1_lengths.append(loc.length)
+                if protein2 in ids:
+                    for loc in annotation.locations:
+                        protein2_locations.append(loc.offset - passage.offset)
+                        protein2_lengths.append(loc.length)
 
-                protein1_locations_arr = np.array(protein1_locations).reshape(-1, 1)
-                protein2_locations_arr = np.array(protein2_locations).reshape(1, -1)
-                dists = abs(protein1_locations_arr - protein2_locations_arr)
-                for i, j in zip(*np.where(dists <= 300)):
-                    loc_prot1 = protein1_locations_arr[i, 0]
-                    loc_prot2 = protein2_locations_arr[0, j]
-                    len_prot1 = protein1_lengths[i]
-                    len_prot2 = protein2_lengths[j]
-                    sentence = self.get_sentence(passage=passage,
-                                                       offset_prot1=loc_prot1,
-                                                       offset_prot2=loc_prot2,
-                                                       len_prot1=len_prot1,
-                                                       len_prot2=len_prot2,
-                                                       pmid=document.id
-                                                       )
-                    if sentence:
-                        sentences.append(sentence)
+            protein1_locations_arr = np.array(protein1_locations).reshape(-1, 1)
+            protein2_locations_arr = np.array(protein2_locations).reshape(1, -1)
+            dists = abs(protein1_locations_arr - protein2_locations_arr)
+            for i, j in zip(*np.where(dists <= 300)):
+                loc_prot1 = protein1_locations_arr[i, 0]
+                loc_prot2 = protein2_locations_arr[0, j]
+                len_prot1 = protein1_lengths[i]
+                len_prot2 = protein2_lengths[j]
+                sentence = self.get_sentence(passage=passage,
+                                                   offset_prot1=loc_prot1,
+                                                   offset_prot2=loc_prot2,
+                                                   len_prot1=len_prot1,
+                                                   len_prot2=len_prot2,
+                                                   pmid=document.id
+                                                   )
+                if sentence:
+                    sentences.append(sentence)
 
         return sentences
 
     def get_sentences(self, protein1, protein2):
+        sentences = []
         if protein1 not in self.gene2pmid or protein2 not in self.gene2pmid:
             return []
         pmids = sorted(self.gene2pmid[protein1] & self.gene2pmid[protein2])
@@ -572,9 +572,13 @@ class DataGetter:
             documents = self.get_documents_from_local(pmids)
         else:
             documents = self.get_documents_from_api(pmids)
+        for document in documents:
+            sentences += self.get_sentences_from_document(protein1=protein1,
+                                                          protein2=protein2,
+                                                          document=document)
 
-        return self.get_sentences_from_documents(protein1=protein1, protein2=protein2,
-                                                 documents=documents)
+        return sentences
+
 
     def maybe_get_from_cache(self, pmids: List[str]) -> Tuple[List[bioc.BioCDocument], List[str]]:
         cached_documents = [self._document_cache[i] for i in pmids if i in self._document_cache]
@@ -609,7 +613,7 @@ class DataGetter:
             result = requests.get(service_root, params={"pmids": ",".join(pmid_chunk),
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
-            documents += collection.documents
+            yield from collection.documents
             if pbar:
                 pbar.update(len(pmid_chunk))
             self.cache_documents(collection.documents)
@@ -619,12 +623,10 @@ class DataGetter:
             result = requests.get(service_root, params={"pmcids": ",".join(pmcid_chunk),
                                                         "concepts": "gene"})
             collection = bioc.loads(result.content.decode())
-            documents += collection.documents
+            yield from collection.documents
             if pbar:
                 pbar.update(len(pmcid_chunk))
             self.cache_documents(collection.documents)
-
-        return documents
 
     def get_documents_from_local(self, pmids):
         assert isinstance(self.local_pubtator, LocalPubtatorManager)
@@ -746,8 +748,13 @@ def get_gene_mapping(from_db: str, to_db: str):
     return dict(final_mapping)
 
 
-def build_summary_table(raw_dir: Path) -> List[Tuple[str, float]]:
-    rel_to_score = defaultdict(float)
+def build_summary_table(raw_dir: Path,
+                        score_cutoff: float = 0.0,
+                        no_association_type: bool = False) -> List[Tuple[str, float]]:
+    table = []
+
+    rel_to_score_sum = defaultdict(float)
+    rel_to_score_max = defaultdict(float)
 
     files = raw_dir.glob("*.txt")
     for file in files:
@@ -756,10 +763,39 @@ def build_summary_table(raw_dir: Path) -> List[Tuple[str, float]]:
             for line in f:
                 fields = line.strip().split()
                 if fields:
-                    rel = f"{p1}\t{fields[0]}\t{p2}"
-                    rel_to_score[rel] += float(fields[1])
+                    if no_association_type:
+                        p1_unified, p2_unified = sorted([p1, p2])
+                        rel = (p1_unified, "association", p2_unified)
+                    else:
+                        rel = (p1, fields[0], p2)
+                    if float(fields[1]) >= score_cutoff:
+                        rel_to_score_sum[rel] += float(fields[1])
+                        rel_to_score_max[rel] = max(float(fields[1]), rel_to_score_max[rel])
 
-    return sorted(rel_to_score.items(), key=itemgetter(1), reverse=True)
+    for rel, score_sum in rel_to_score_sum.items():
+        score_max = rel_to_score_max[rel]
+        row = rel + (score_sum, score_max)
+        table.append(row)
+
+    return sorted(table, key=itemgetter(3), reverse=True)
+
+
+def get_hgnc_symbol_to_gene_id():
+    hgnc_symbol_to_gene_id = {}
+    url = "http://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt"
+    with open(cached_path(url, cache_dir=cache_root)) as f:
+        next(f)
+        for line in f:
+            fields = line.strip().split("\t")
+            if len(fields) > 18:
+                symbol = fields[1]
+                gene_id = fields[18]
+                hgnc_symbol_to_gene_id[symbol] = gene_id
+
+    return hgnc_symbol_to_gene_id
+
+
+
 
 
 
