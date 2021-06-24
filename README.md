@@ -29,7 +29,7 @@ These can be looked up via standard webinterfaces like
 
 * #### Interactions between single proteins
     ```bash
-    pedl predict --p1 29126 --p2 54918 --out PEDL_predictions
+    pedl predict --p1 CD274 --p2 CMTM6 --out PEDL_predictions
     ```
   Results:
   ```bash
@@ -40,13 +40,11 @@ These can be looked up via standard webinterfaces like
   in-complex-with	0.98	6978769	A PD-L1 antibody, H1A, was developed to destabilize PD-L1 by disrupting the <e1>PD-L1</e1> stabilizer <e2>CMTM6</e2>.	PEDL
   ```
 
-
-
 * #### Pairwise interactions between multiple proteins
   ```bash
-  pedl predict --p1 29126 --p2  54918 920  --out PEDL_predictions
+  pedl predict --p1 CMTM6 --p2  54918 920  --out PEDL_predictions
   ```
-  searches for interactions between 29126 and 54918, and for interactions between 29126 and 920
+  searches for interactions between CMTM6 and 54918, and for interactions between CMTM6 and 920
 
 
 * #### Read protein lists from files
@@ -54,6 +52,14 @@ These can be looked up via standard webinterfaces like
   pedl predict --p1 proteins.txt --p2  54918 920  --out PEDL_predictions
   ```
   searches for interactions between the proteins in `proteins.txt` and 54918, as well as interactions between proteins in `proteins.txt` and 920
+  
+* #### Allow multiple sentences
+  By default, PEDL will only search for interactions described in a single sentence.
+  If you want PEDL to read text snippets that span multiple sentences, use
+  `--multi_sentence`. Note, that this may slow down reading by a lot if you are not using a GPU.
+  ```bash
+    pedl predict --p1 CD274 --p2 CMTM6 --out PEDL_predictions --multi_sentence
+  ```
   
 
 * #### Search for multiple species at once
@@ -93,10 +99,28 @@ These can be looked up via standard webinterfaces like
     ```
   
 ### summarize
+Use `summarize` to create a summary file describing all results in a directory.
+By default, PEDL will create the summary CSV next to the results directory.
 ```bash
-pedl summarize PEDL_predictions [--out PATH_TO_SUMMARY_CSV]
+pedl summarize PEDL_predictions
 ```
-* By default, PEDL will create the summary CSV in the directory containing `PEDL_predictions`
+Results:
+  ```bash
+  $ head -n4 PEDL_predictions.tsv
+  p1      association type        p2      score (sum)     score (max)
+  CMTM6   controls-state-change-of        CD274   4.17    0.90
+  CMTM6   in-complex-with CD274   2.48    0.97
+  CD274   in-complex-with CMTM6   2.40    0.98
+  ````
+
+Results can also be aggregate ignoring the association type and the direction of the association: 
+```bash
+  $ pedl summarize PEDL_predictions --no_association_type
+  
+  $ cat PEDL_predictions.tsv
+  p1      association type        p2      score (sum)     score (max)
+  CD274   association     CMTM6   11.52   1.00
+  ````
 
 
 
@@ -104,7 +128,7 @@ pedl summarize PEDL_predictions [--out PATH_TO_SUMMARY_CSV]
 ## References
 Code and instructions to reproduce the results of our [paper](https://academic.oup.com/bioinformatics/article/36/Supplement_1/i490/5870497), can be found [here](https://github.com/leonweber/pedl_ismb20).
 
-If you use PEDL in your work, please cite us 
+If you use PEDL in your work, please cite us
 ```
 @article{weber2020pedl,
   title={PEDL: extracting protein--protein associations using deep language models and distant supervision},
