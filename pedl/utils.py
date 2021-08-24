@@ -232,7 +232,7 @@ def get_from_cache(url: str, cache_dir: Path = None) -> Path:
         fd, temp_filename = tempfile.mkstemp()
 
         # GET file object
-        req = requests.get(url, stream=True, headers={"User-Agent": "Flair"})
+        req = requests.get(url, stream=True, headers={"User-Agent": "PEDL"})
         content_length = req.headers.get("Content-Length")
         total = int(content_length) if content_length is not None else None
         progress = Tqdm.tqdm(unit="B", total=total)
