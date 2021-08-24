@@ -9,8 +9,10 @@ import shutil
 import tempfile
 import warnings
 from collections import defaultdict
+from dataclasses import dataclass
 from operator import itemgetter
 from pathlib import Path
+from time import time
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
 
@@ -23,8 +25,9 @@ from transformers.file_utils import default_cache_path
 from segtok.segmenter import split_multi
 
 
-
-cache_root = Path(os.getenv("PEDL_CACHE", Path(default_cache_path).parent.parent / "pedl"))
+cache_root = Path(
+    os.getenv("PEDL_CACHE", Path(default_cache_path).parent.parent / "pedl")
+)
 if not cache_root.exists():
     os.makedirs(cache_root, exist_ok=True)
 
@@ -32,22 +35,37 @@ root = Path(__file__).parent
 
 
 class Sentence:
-    def __init__(self, text:str, start_pos: int, pmid: Optional[str] = None,
-                 text_blinded: Optional[str] = None):
+    def __init__(
+        self,
+        text: str,
+        start_pos: int,
+        pmid: Optional[str] = None,
+        text_blinded: Optional[str] = None,
+    ):
         self.text = text
         self.pmid = pmid
         self.start_pos = start_pos
         self.end_pos = start_pos + len(text)
         self.text_blinded = text_blinded
 
-    def get_unmarked_text(self):
-        return self.text.replace("<e1>", "").replace("</e1>", "").replace("<e2>", "").replace("</e2>", "")
+    def __str__(self):
+        return self.text
 
+    def __repr__(self):
+        return str(self)
+
+    def get_unmarked_text(self):
+        return (
+            self.text.replace("<e1>", "")
+            .replace("</e1>", "")
+            .replace("<e2>", "")
+            .replace("</e2>", "")
+        )
 
 
 class SegtokSentenceSplitter:
     """
-        For further details see: https://github.com/fnl/segtok
+    For further details see: https://github.com/fnl/segtok
     """
 
     def split(self, text: str) -> List[Sentence]:
@@ -59,8 +77,10 @@ class SegtokSentenceSplitter:
             sentence_offset = text.find(sentence, offset)
 
             if sentence_offset == -1:
-                raise AssertionError(f"Can't find offset for sentences {plain_sentences} "
-                                     f"starting from {offset}")
+                raise AssertionError(
+                    f"Can't find offset for sentences {plain_sentences} "
+                    f"starting from {offset}"
+                )
 
             sentences += [
                 Sentence(
@@ -74,14 +94,13 @@ class SegtokSentenceSplitter:
         return sentences
 
 
-
-
 from tqdm import tqdm as _tqdm, tqdm
+
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
 
 
 def get_pmid(document: bioc.BioCDocument) -> Tuple[str, int]:
@@ -95,8 +114,8 @@ def get_pmid(document: bioc.BioCDocument) -> Tuple[str, int]:
 
     return pmid, is_fulltext
 
-def _process_pubtator_files(files: List[Path], q: mp.Queue,
-                            pickle_path: Path):
+
+def _process_pubtator_files(files: List[Path], q: mp.Queue, pickle_path: Path):
     for file in files:
         partial_index = {}
         with file.open() as f:
@@ -119,13 +138,14 @@ def build_index_and_document_pickles(pubtator_path, n_processes, pickle_path=Non
         os.makedirs(pickle_path, exist_ok=True)
 
     index = {}
-    ctx = mp.get_context("spawn")
+    ctx = mp.get_context()
     q = ctx.Queue()
     files = list(pubtator_path.glob("*bioc.xml"))
     processes = []
-    for file_chunk in chunks(files, len(files) // n_processes-1):
-        p = ctx.Process(target=_process_pubtator_files,
-                        args=(file_chunk, q, pickle_path))
+    for file_chunk in chunks(files, len(files) // n_processes - 1):
+        p = ctx.Process(
+            target=_process_pubtator_files, args=(file_chunk, q, pickle_path)
+        )
         p.start()
         processes.append(p)
 
@@ -138,7 +158,9 @@ def build_index_and_document_pickles(pubtator_path, n_processes, pickle_path=Non
     while n_files_processed < len(files):
         partial_index = q.get()
         for k, v in partial_index.items():
-            if k not in index or v[2]: # Either a new ID or the full text id that replaces the abstract id
+            if (
+                k not in index or v[2]
+            ):  # Either a new ID or the full text id that replaces the abstract id
                 index[k] = v
         n_files_processed += 1
         pbar.update()
@@ -151,7 +173,6 @@ def build_index_and_document_pickles(pubtator_path, n_processes, pickle_path=Non
             f.write(k + "\t" + v[0] + "\t" + str(v[1]) + "\t" + str(v[2]) + "\n")
 
     return index
-
 
 
 class Tqdm:
@@ -261,12 +282,12 @@ def cached_path(url_or_filename: str, cache_dir: Union[str, Path]) -> Path:
 
 def unpack_file(file: Path, unpack_to: Path, mode: str = None, keep: bool = True):
     """
-        Unpacks a file to the given location.
+    Unpacks a file to the given location.
 
-        :param file Archive file to unpack
-        :param unpack_to Destination where to store the output
-        :param mode Type of the archive (zip, tar, gz, targz, rar)
-        :param keep Indicates whether to keep the archive after extraction or delete it
+    :param file Archive file to unpack
+    :param unpack_to Destination where to store the output
+    :param mode Type of the archive (zip, tar, gz, targz, rar)
+    :param keep Indicates whether to keep the archive after extraction or delete it
     """
     if mode == "zip" or (mode is None and str(file).endswith("zip")):
         from zipfile import ZipFile
@@ -276,7 +297,7 @@ def unpack_file(file: Path, unpack_to: Path, mode: str = None, keep: bool = True
             zipObj.extractall(unpack_to)
 
     elif mode == "targz" or (
-            mode is None and str(file).endswith("tar.gz") or str(file).endswith("tgz")
+        mode is None and str(file).endswith("tar.gz") or str(file).endswith("tgz")
     ):
         import tarfile
 
@@ -313,21 +334,21 @@ def unpack_file(file: Path, unpack_to: Path, mode: str = None, keep: bool = True
 
 def replace_consistently(offset, length, replacement, text, offsets):
     delta_len = len(replacement) - length
-    new_text = text[:offset] + replacement + text[offset+length:]
+    new_text = text[:offset] + replacement + text[offset + length :]
     new_offsets = offsets.copy()
-    new_offsets[offsets >= offset+length] += delta_len
+    new_offsets[offsets >= offset + length] += delta_len
 
     return new_text, new_offsets
 
 
-
 class LocalPubtatorManager:
-
     def __init__(self, pubtator_path: Path, n_processes: Optional[int] = None):
         self.path = pubtator_path
         self.logger = logging.getLogger(LocalPubtatorManager.__name__)
         if n_processes is not None:
-            assert n_processes > 1, "We need at least two processes for building the pubtator index"
+            assert (
+                n_processes > 1
+            ), "We need at least two processes for building the pubtator index"
             self.n_processes = n_processes
         else:
             self.n_processes = mp.cpu_count() + 1
@@ -337,63 +358,103 @@ class LocalPubtatorManager:
     def maybe_build_index(self):
         index_path = cache_root / "pubtator.index"
         if not index_path.exists():
-            index = build_index_and_document_pickles(pickle_path=None,
-                                                     pubtator_path=self.path,
-                                                     n_processes=self.n_processes)
+            index = build_index_and_document_pickles(
+                pickle_path=None, pubtator_path=self.path, n_processes=self.n_processes
+            )
         else:
             index = {}
             with index_path.open() as f:
-                for line in tqdm(f, total=32280915,
-                                 desc="Loading cached PubTator index"):
+                for i, line in enumerate(tqdm(
+                    f, total=32280915, desc="Loading cached PubTator index"
+                )):
                     line = line.strip()
                     if line:
                         fields = line.split("\t")
                         index[fields[0]] = (fields[1], int(fields[2]), int(fields[3]))
+                    # if i > 10000:
+                    #     break
 
         return index
 
-    def _get_docs_from_files(self, files_to_open, pmids, q):
+    def _get_docs(self, pmids, q):
         docs = []
-        for file in files_to_open:
+        t_read = 0
+        t_decode = 0
+        for pmid in tqdm(pmids, desc="Sending"):
+            file = self.index[pmid][0]
+            doc_idx = self.index[pmid][1]
+            t0 = time()
             with open(self.path / file) as f:
-                print("Opening " + str(file))
-                collection = bioc.load(f)
-                for document in collection.documents:
-                    pmid = get_pmid(document)[0]
-                    if pmid in pmids:
-                        docs.append(document)
-            print(f"Done: {file}")
-            q.put(docs)
+                lines = f.readlines()
+                t_read += time() - t0
+                t1 = time()
+                document = bioc.loads(lines[0] + lines[doc_idx + 1] + lines[-1]).documents[0]
+                t_decode += time() - t1
+                pmid = get_pmid(document)[0]
+                assert pmid in pmids
+                docs.append(document)
+        print(f"t_read: {t_read}s")
+        print(f"t_decode: {t_decode}s")
+        q.put(docs)
 
-    def get_documents(self, pmids: List[str], chunk_size: int):
+    def get_documents_parallel(self, pmids: List[str]):
+        documents = []
 
+        ctx = mp.get_context("spawn")
+        q = ctx.Queue()
+        processes = []
+        n_chunks_processed = 0
+        # for file_chunk in tqdm(list(chunks(files_to_open, len(files_to_open) // self.n_processes-1)), desc="Spawning workers"):
+        pmid_chunks = list(chunks(pmids, n=max(len(pmids) // self.n_processes-1, 1)))
+        # pmid_chunks = [pmids]
+        for pmid_chunk in tqdm(pmid_chunks, desc="Spawning workers"):
+            p = ctx.Process(
+                target=self._get_docs, args=(pmid_chunk, q)
+            )
+            p.start()
+            processes.append(p)
+        # pbar = tqdm(desc="Receiving", total=len(pmid_chunks))
+        while n_chunks_processed < len(pmid_chunks):
+            docs_from_file = q.get()
+            documents.extend(docs_from_file)
+            n_chunks_processed += 1
+            print("Received")
+            # pbar.update()
+
+        return [documents]
+
+    def get_documents(self, pmids: List[str]):
         available_pmids = [i for i in pmids if i in self.index]
 
-        pmids = set(pmids)
-        self.logger.info(f"Getting {len(available_pmids)} documents from local PubTator")
-        for pmid_chunk in chunks(available_pmids, chunk_size):
-            documents = []
-            for pmid in pmid_chunk:
-                file = self.index[pmid][0]
-                doc_idx = self.index[pmid][1]
-                with open(self.path / file) as f:
-                    lines = f.readlines()
-                    document = bioc.loads(lines[0] + lines[doc_idx+1] + lines[-1]).documents[0]
-                    pmid = get_pmid(document)[0]
-                    assert pmid in pmids
-                    documents.append(document)
+        t0 = time()
+        # self.logger.info(f"Getting {len(available_pmids)} documents from local PubTator")
+        documents = []
+        for pmid in available_pmids:
+            file = self.index[pmid][0]
+            doc_idx = self.index[pmid][1]
+            with open(self.path / file) as f:
+                lines = f.readlines()
+                document = bioc.loads(lines[0] + lines[doc_idx+1] + lines[-1]).documents[0]
+                pmid = get_pmid(document)[0]
+                assert pmid in pmids
+                documents.append(document)
 
-            yield documents
+        return [documents]
 
 
-def get_homologue_mapping(expand_species_names: List[str],
-                          protein_universe: Set[str]) -> Dict[str, Set[str]]:
+def get_homologue_mapping(
+    expand_species_names: List[str], protein_universe: Set[str]
+) -> Dict[str, Set[str]]:
     """
     Get mapping from genes in `expand_species` that are not in `protein_universe` to all
     homologous gene_id in `protein_universe`
     """
-    species_to_tax_id = {"human": "9606", "mouse": "10090", "rat": "10116",
-                         "zebrafish": "7955"}
+    species_to_tax_id = {
+        "human": "9606",
+        "mouse": "10090",
+        "rat": "10116",
+        "zebrafish": "7955",
+    }
     expand_species = [species_to_tax_id[i] for i in expand_species_names]
     homologue_mapping = defaultdict(set)
     gene_id_to_cluster_id = {}
@@ -423,43 +484,64 @@ def get_homologue_mapping(expand_species_names: List[str],
     return dict(homologue_mapping)
 
 
+@dataclass(unsafe_hash=True)
+class Entity:
+    cuid: str
+    type: str
+
+    def to_json(self):
+        return [self.cuid, self.type]
+
+
 class DataGetter:
 
     CHUNK_SIZE = 100
-    def __init__(self, protein_universe: Set[str],
-                 local_pubtator: Optional[Path] = None,
-                 n_processes: Optional[int] = None,
-                 api_fallback: Optional[bool] = False,
-                 expand_species: Optional[List[str]] = None
-                 ):
-        self.protein_universe = protein_universe
+
+    def __init__(
+        self,
+        gene_universe: Set[str],
+        chemical_universe: Set[str],
+        local_pubtator: Optional[Path] = None,
+        n_processes: Optional[int] = None,
+        api_fallback: Optional[bool] = False,
+        expand_species: Optional[List[str]] = None,
+    ):
+        self.gene_universe = gene_universe
+        self.chemical_universe = chemical_universe
         self.expand_species = expand_species or []
         if self.expand_species:
-            self.homologue_mapping = get_homologue_mapping(self.expand_species,
-                                                           self.protein_universe)
+            self.homologue_mapping = get_homologue_mapping(
+                self.expand_species, self.gene_universe
+            )
         else:
             self.homologue_mapping = {}
         self.gene2pmid = self.get_gene2pmid()
-        self._document_cache = diskcache.Cache(directory=str(cache_root/"document_cache"),
-                                               eviction_policy="least-recently-used")
+        self.chemical2pmid = self.get_chemical2pmid()
+        self._document_cache = diskcache.Cache(
+            directory=str(cache_root / "document_cache"),
+            eviction_policy="least-recently-used",
+        )
 
         self.api_fallback = api_fallback
 
         self.sentence_splitter = SegtokSentenceSplitter()
         if local_pubtator:
-            self.local_pubtator = LocalPubtatorManager(local_pubtator,
-                                                       n_processes=n_processes)
+            self.local_pubtator = LocalPubtatorManager(
+                local_pubtator, n_processes=n_processes
+            )
         else:
             self.local_pubtator = None
 
     def get_gene2pmid(self):
         gene2pmid = defaultdict(set)
 
-        final_path = cache_root/"data"/"gene2pubtatorcentral"
+        final_path = cache_root / "data" / "gene2pubtatorcentral"
         if not final_path.exists():
             print("Downloading gene2pubtatorcentral...")
-            path = cached_path("https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
-                               "data")
+            path = cached_path(
+                "https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
+                "data",
+            )
             unpack_file(path, final_path)
 
         with final_path.open() as f:
@@ -472,13 +554,45 @@ class DataGetter:
                 if "GNormPlus" not in normalizers:
                     continue
 
-                if gene_id in self.protein_universe:
+                if gene_id in self.gene_universe:
                     gene2pmid[gene_id].add(pmid)
                 elif gene_id in self.homologue_mapping:
-                    for mapped_gene_id in self.homologue_mapping[gene_id]: # mapped_gene_id is from self.protein_universe
+                    for mapped_gene_id in self.homologue_mapping[
+                        gene_id
+                    ]:  # mapped_gene_id is from self.protein_universe
                         gene2pmid[mapped_gene_id].add(pmid)
 
         return dict(gene2pmid)
+
+    def get_chemical2pmid(self):
+        chemical2pmid = defaultdict(set)
+
+        final_path = cache_root / "data" / "chemical2pubtatorcentral"
+        if not final_path.exists():
+            print("Downloading chemical2pubtatorcentral...")
+            path = cached_path(
+                "https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/chemical2pubtatorcentral.gz",
+                "data",
+            )
+            unpack_file(path, final_path)
+
+        with final_path.open() as f:
+            for line in tqdm(
+                f, total=104567794, desc="Loading chemical2pubtatorcentral"
+            ):
+                line = line.strip()
+                fields = line.split("\t")
+                chemical_id = fields[2]
+                pmid = fields[0]
+                normalizers = fields[4]
+                if "TaggerOne" not in normalizers:
+                    continue
+
+                if chemical_id in self.chemical_universe:
+                    chemical2pmid[chemical_id].add(pmid)
+
+        return dict(chemical2pmid)
+
 
     def maybe_map_to_pmcid(self, pmids):
         pmid_to_pmcid = {}
@@ -492,16 +606,18 @@ class DataGetter:
                     if "pmcid" in record.attrib:
                         pmid_to_pmcid[record.attrib["pmid"]] = record.attrib["pmcid"]
             except etree.XMLSyntaxError:
-                warnings.warn("Failed to parse PubTator response."
-                              " You are probably issuing too many requests."
-                              " Please use a local copy of PubTator or disable api_fallback, if you already do.")
+                warnings.warn(
+                    "Failed to parse PubTator response."
+                    " You are probably issuing too many requests."
+                    " Please use a local copy of PubTator or disable api_fallback, if you already do."
+                )
 
         return pmid_to_pmcid
 
-    def get_ids_from_annotation(self, annotation: bioc.BioCAnnotation) -> Set[str]:
+    def get_entities_from_annotation(self, annotation: bioc.BioCAnnotation) -> Set[Entity]:
         """
-        Extract cuids from `annotation` and expand them with homologues from
-        `self.expand_species`.
+        Extract entities from `annotation` and expand them with homologues from
+        `self.expand_species` if it is a Gene.
         """
         if "identifier" in annotation.infons:
             identifiers = annotation.infons["identifier"]
@@ -513,74 +629,85 @@ class DataGetter:
         identifiers = set(identifiers.split(";"))
 
         expanded_identifiers = identifiers.copy()
-        for cuid in identifiers:
-            expanded_identifiers.update(self.homologue_mapping.get(cuid, {}))
+        if annotation.infons["type"] == "Gene":
+            for cuid in identifiers:
+                expanded_identifiers.update(self.homologue_mapping.get(cuid, {}))
 
-        return expanded_identifiers
+        return set(Entity(cuid=cuid, type=annotation.infons["type"]) for cuid in expanded_identifiers)
 
-    def get_sentences_from_document(self, protein1, protein2, document):
+    def get_sentences_from_document(self, entity1: Entity, entity2: Entity, document):
         sentences = []
         for passage in document.passages:
-            protein1_locations = []
-            protein1_lengths = []
-            protein2_locations = []
-            protein2_lengths = []
+            entity1_locations = []
+            entity1_lengths = []
+            entity2_locations = []
+            entity2_lengths = []
             for annotation in passage.annotations:
-                if annotation.infons["type"] != "Gene":
+                if annotation.infons["type"] not in {entity1.type, entity2.type}:
                     continue
 
-                ids = self.get_ids_from_annotation(annotation)
+                entities_ann = self.get_entities_from_annotation(annotation)
 
-                if protein1 in ids:
+                if entity1 in entities_ann:
                     for loc in annotation.locations:
-                        protein1_locations.append(loc.offset - passage.offset)
-                        protein1_lengths.append(loc.length)
-                if protein2 in ids:
+                        entity1_locations.append(loc.offset - passage.offset)
+                        entity1_lengths.append(loc.length)
+                if entity2 in entities_ann:
                     for loc in annotation.locations:
-                        protein2_locations.append(loc.offset - passage.offset)
-                        protein2_lengths.append(loc.length)
+                        entity2_locations.append(loc.offset - passage.offset)
+                        entity2_lengths.append(loc.length)
 
-            protein1_locations_arr = np.array(protein1_locations).reshape(-1, 1)
-            protein2_locations_arr = np.array(protein2_locations).reshape(1, -1)
-            dists = abs(protein1_locations_arr - protein2_locations_arr)
+            entity1_locations_arr = np.array(entity1_locations).reshape(-1, 1)
+            entity2_locations_arr = np.array(entity2_locations).reshape(1, -1)
+            dists = abs(entity1_locations_arr - entity2_locations_arr)
             for i, j in zip(*np.where(dists <= 300)):
-                loc_prot1 = protein1_locations_arr[i, 0]
-                loc_prot2 = protein2_locations_arr[0, j]
-                len_prot1 = protein1_lengths[i]
-                len_prot2 = protein2_lengths[j]
-                sentence = self.get_sentence(passage=passage,
-                                                   offset_prot1=loc_prot1,
-                                                   offset_prot2=loc_prot2,
-                                                   len_prot1=len_prot1,
-                                                   len_prot2=len_prot2,
-                                                   pmid=document.id
-                                                   )
+                loc_ent1 = entity1_locations_arr[i, 0]
+                loc_ent2 = entity2_locations_arr[0, j]
+                len_ent1 = entity1_lengths[i]
+                len_ent2 = entity2_lengths[j]
+                sentence = self.get_sentence(
+                    passage=passage,
+                    offset_ent1=loc_ent1,
+                    offset_ent2=loc_ent2,
+                    len_ent1=len_ent1,
+                    len_ent2=len_ent2,
+                    pmid=document.id,
+                )
                 if sentence:
                     sentences.append(sentence)
 
         return sentences
 
-    def get_sentences(self, protein1, protein2):
-        if protein1 not in self.gene2pmid or protein2 not in self.gene2pmid:
-            return []
-        pmids = sorted(self.gene2pmid[protein1] & self.gene2pmid[protein2])
-        if not pmids:
-            return []
+    def get_pmids(self, entity: Entity) -> Set[str]:
+        if entity.type == "Chemical":
+            cuid_to_pmid = self.chemical2pmid
+        elif entity.type == "Gene":
+            cuid_to_pmid = self.gene2pmid
+        else:
+            raise ValueError
 
+        return cuid_to_pmid.get(entity.cuid, set())
+
+    def get_documents(self, pmids):
         if self.local_pubtator is not None:
             documents_it = self.get_documents_from_local(pmids)
         else:
             documents_it = self.get_documents_from_api(pmids)
 
-        for documents in documents_it:
+        return documents_it
+
+    def get_sentences(self, entity1: Entity, entity2: Entity):
+        pmids = sorted(self.get_pmids(entity1) & self.get_pmids(entity2))
+        if not pmids:
+            return []
+
+        for documents in self.get_documents(pmids):
             sentences = []
             for document in documents:
-                sentences += self.get_sentences_from_document(protein1=protein1,
-                                                       protein2=protein2,
-                                                       document=document)
+                sentences += self.get_sentences_from_document(
+                    entity1=entity1, entity2=entity2, document=document
+                )
             yield sentences
-
-
 
     def cache_documents(self, documents: List[bioc.BioCDocument]) -> None:
         logging.info(f"Caching {len(documents)} documents")
@@ -604,16 +731,19 @@ class DataGetter:
             yield [self._document_cache[i] for i in pmid_chunk]
 
         uncached_pmids = [i for i in pmids if i not in cached_pmids]
-        pmid_to_pmcid = self.maybe_map_to_pmcid(uncached_pmids)
-
+        # pmid_to_pmcid = self.maybe_map_to_pmcid(uncached_pmids)
+        pmid_to_pmcid = {}
 
         pmids_to_retreive = [i for i in uncached_pmids if i not in pmid_to_pmcid]
-        pmcids_to_retreive = [pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid]
+        pmcids_to_retreive = [
+            pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid
+        ]
 
         for pmid_chunk in list(chunks(pmids_to_retreive, self.CHUNK_SIZE)):
 
-            result = requests.get(service_root, params={"pmids": ",".join(pmid_chunk),
-                                                        "concepts": "gene"})
+            result = requests.get(
+                service_root, params={"pmids": ",".join(pmid_chunk), "concepts": "gene,chemical"}
+            )
             collection = bioc.loads(result.content.decode())
             yield collection.documents
             if pbar:
@@ -622,8 +752,10 @@ class DataGetter:
 
         for pmcid_chunk in list(chunks(pmcids_to_retreive, self.CHUNK_SIZE)):
 
-            result = requests.get(service_root, params={"pmcids": ",".join(pmcid_chunk),
-                                                        "concepts": "gene"})
+            result = requests.get(
+                service_root,
+                params={"pmcids": ",".join(pmcid_chunk), "concepts": "gene"},
+            )
             collection = bioc.loads(result.content.decode())
             yield collection.documents
             if pbar:
@@ -633,16 +765,23 @@ class DataGetter:
     def get_documents_from_local(self, pmids):
         yield from self.local_pubtator.get_documents(pmids)
 
+    def get_sentence(
+        self,
+        passage,
+        offset_ent1,
+        offset_ent2,
+        len_ent1,
+        len_ent2,
+        pmid,
+        allow_multi_sentence=False,
+    ):
 
-    def get_sentence(self, passage, offset_prot1, offset_prot2, len_prot1, len_prot2, pmid,
-                     allow_multi_sentence=False):
-
-        if offset_prot1 < offset_prot2:
-            left_start = offset_prot1
-            right_start = offset_prot2
+        if offset_ent1 < offset_ent2:
+            left_start = offset_ent1
+            right_start = offset_ent2
         else:
-            left_start = offset_prot2
-            right_start = offset_prot1
+            left_start = offset_ent2
+            right_start = offset_ent1
         sents = self.sentence_splitter.split(passage.text.strip())
         snippet_start = None
         snippet_end = None
@@ -650,7 +789,9 @@ class DataGetter:
             if sent.end_pos >= left_start >= sent.start_pos:
                 snippet_start = sent.start_pos
 
-            if sent.end_pos >= right_start >= sent.start_pos: # is sentence after right entity
+            if (
+                sent.end_pos >= right_start >= sent.start_pos
+            ):  # is sentence after right entity
                 snippet_end = sent.end_pos
 
         if snippet_start is not None and snippet_end is None:
@@ -658,30 +799,31 @@ class DataGetter:
         if snippet_start is None:
             return None
 
-        if not allow_multi_sentence and not any(snippet_start == i.start_pos and snippet_end == i.end_pos for i in sents):
-            return None # is multi sentence
+        if not allow_multi_sentence and not any(
+            snippet_start == i.start_pos and snippet_end == i.end_pos for i in sents
+        ):
+            return None  # is multi sentence
 
         offsets = []
         lengths = []
-        id_to_offset_idx = defaultdict(list)
+        entity_to_offset_idx = defaultdict(list)
         offset_idx_p1 = None
         offset_idx_p2 = None
         for ann in passage.annotations:
             for loc in ann.locations:
                 if snippet_end >= loc.offset - passage.offset >= snippet_start:
                     offset_idx = len(offsets)
-                    if ann.infons["type"] == "Gene":
-                        ids = self.get_ids_from_annotation(ann)
-                        for cuid in ids:
-                            id_to_offset_idx[cuid].append(len(offsets))
+                    entities = self.get_entities_from_annotation(ann)
+                    for entity in entities:
+                        entity_to_offset_idx[entity].append(len(offsets))
 
-                        offsets.append(loc.offset - passage.offset)
-                        lengths.append(loc.length)
+                    offsets.append(loc.offset - passage.offset)
+                    lengths.append(loc.length)
 
-                        if loc.offset-passage.offset == offset_prot1:
-                            offset_idx_p1 = offset_idx
-                        if loc.offset-passage.offset == offset_prot2:
-                            offset_idx_p2 = offset_idx
+                    if loc.offset - passage.offset == offset_ent1:
+                        offset_idx_p1 = offset_idx
+                    if loc.offset - passage.offset == offset_ent2:
+                        offset_idx_p2 = offset_idx
 
         if offset_idx_p1 is None or offset_idx_p2 is None:
             # Weird encoding error
@@ -691,28 +833,48 @@ class DataGetter:
         text = passage.text[snippet_start:snippet_end]
         offsets -= snippet_start
 
-        text_prot1 = passage.text[offset_prot1:offset_prot1 + len_prot1]
-        text, offsets = replace_consistently(offset=offsets[offset_idx_p1], length=lengths[offset_idx_p1],
-                                             replacement=f"<e1>{text_prot1}</e1>",
-                                             text=text, offsets=offsets)
-        offsets[offset_idx_p1] += 4
+        head_start_marker = "[HEAD-S]"
+        head_end_marker = "[HEAD-E]"
+        tail_start_marker = "[TAIL-S]"
+        tail_end_marker = "[TAIL-E]"
 
-        text_prot2 = passage.text[offset_prot2:offset_prot2 + len_prot2]
-        text, offsets = replace_consistently(offset=offsets[offset_idx_p2], length=lengths[offset_idx_p2],
-                                             replacement=f"<e2>{text_prot2}</e2>",
-                                             text=text, offsets=offsets)
-        offsets[offset_idx_p2] += 4
+        text_ent1 = passage.text[offset_ent1: offset_ent1 + len_ent1]
+        text, offsets = replace_consistently(
+            offset=offsets[offset_idx_p1],
+            length=lengths[offset_idx_p1],
+            replacement=f"{head_start_marker}{text_ent1}{head_end_marker}",
+            text=text,
+            offsets=offsets,
+        )
+        offsets[offset_idx_p1] += len(head_start_marker)
 
+        text_ent2 = passage.text[offset_ent2: offset_ent2 + len_ent2]
+        text, offsets = replace_consistently(
+            offset=offsets[offset_idx_p2],
+            length=lengths[offset_idx_p2],
+            replacement=f"{tail_start_marker}{text_ent2}{tail_end_marker}",
+            text=text,
+            offsets=offsets,
+        )
+        offsets[offset_idx_p2] += len(tail_start_marker)
+
+        masked_indices = set()
         blinded_text = text
-        for i, idcs in enumerate(id_to_offset_idx.values()):
+        for i, (entity, idcs) in enumerate(entity_to_offset_idx.items()):
             for idx in idcs:
-                blinded_text, offsets = replace_consistently(offset=offsets[idx],
-                                                     length=lengths[idx],
-                                                     replacement=f"<protein{i}/>",
-                                                     text=blinded_text, offsets=offsets)
+                if idx not in masked_indices:
+                    blinded_text, offsets = replace_consistently(
+                        offset=offsets[idx],
+                        length=lengths[idx],
+                        replacement=f"[{entity.type.upper()}]",
+                        text=blinded_text,
+                        offsets=offsets,
+                    )
+                    masked_indices.add(idx)
 
-        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text,
-                        start_pos=snippet_start)
+        return Sentence(
+            pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start
+        )
 
 
 def get_geneid_to_name():
@@ -724,8 +886,10 @@ def get_gene_mapping(from_db: str, to_db: str):
     final_mapping = defaultdict(set)
     uniprot_to_from_db = defaultdict(set)
     uniprot_to_to_db = defaultdict(set)
-    uniprot_mapping_file = cached_path("https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz",
-                                       cache_dir=cache_root)
+    uniprot_mapping_file = cached_path(
+        "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz",
+        cache_dir=cache_root,
+    )
     with gzip.open(uniprot_mapping_file) as f:
         for line in f:
             uniprot_id, other_db, other_db_id = line.decode().strip().split("\t")
@@ -745,9 +909,9 @@ def get_gene_mapping(from_db: str, to_db: str):
     return dict(final_mapping)
 
 
-def build_summary_table(raw_dir: Path,
-                        score_cutoff: float = 0.0,
-                        no_association_type: bool = False) -> List[Tuple[str, float]]:
+def build_summary_table(
+    raw_dir: Path, score_cutoff: float = 0.0, no_association_type: bool = False
+) -> List[Tuple[str, float]]:
     table = []
 
     rel_to_score_sum = defaultdict(float)
@@ -767,7 +931,9 @@ def build_summary_table(raw_dir: Path,
                         rel = (p1, fields[0], p2)
                     if float(fields[1]) >= score_cutoff:
                         rel_to_score_sum[rel] += float(fields[1])
-                        rel_to_score_max[rel] = max(float(fields[1]), rel_to_score_max[rel])
+                        rel_to_score_max[rel] = max(
+                            float(fields[1]), rel_to_score_max[rel]
+                        )
 
     for rel, score_sum in rel_to_score_sum.items():
         score_max = rel_to_score_max[rel]
@@ -790,14 +956,3 @@ def get_hgnc_symbol_to_gene_id():
                 hgnc_symbol_to_gene_id[symbol] = gene_id
 
     return hgnc_symbol_to_gene_id
-
-
-
-
-
-
-
-
-
-
-

@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 from torch import nn
@@ -14,7 +15,7 @@ from transformers import BertTokenizerFast
 from pedl.model import BertForDistantSupervision
 from pedl.dataset import PEDLDataset
 from pedl.utils import DataGetter, get_geneid_to_name, build_summary_table, \
-    get_hgnc_symbol_to_gene_id, chunks
+    get_hgnc_symbol_to_gene_id, chunks, Entity
 
 
 def summarize(args):
@@ -187,6 +188,70 @@ def predict(args):
             os.remove(path_out)
 
 
+def build_training_set(args):
+    pair_to_relations = defaultdict(set)
+    pmid_to_pairs = defaultdict(set)
+
+    gene_universe = set()
+    chemical_universe = set()
+
+    with args.triples.open() as f:
+        for line in f:
+            fields = line.strip().split("\t")
+            if fields:
+                type_head, cuid_head, type_tail, cuid_tail, rel = fields
+                head = Entity(cuid=cuid_head, type=type_head)
+                tail = Entity(cuid=cuid_tail, type=type_tail)
+                pair_to_relations[(head, tail)].add(rel)
+
+                if head.type == "Chemical":
+                    chemical_universe.add(head.cuid)
+                elif head.type == "Gene":
+                    gene_universe.add(head.cuid)
+                else:
+                    raise ValueError(head.type)
+                if tail.type == "Chemical":
+                    chemical_universe.add(tail.cuid)
+                elif tail.type == "Gene":
+                    gene_universe.add(tail.cuid)
+                else:
+                    raise ValueError(tail.type)
+
+    data_getter = DataGetter(chemical_universe=chemical_universe,
+                             gene_universe=gene_universe,
+                             local_pubtator=args.pubtator,
+                             expand_species=args.expand_species)
+
+    all_pmids = set()
+
+    for pair, relations in tqdm(list(pair_to_relations.items()),
+                                desc="Preparing Crawl"):
+        head, tail = pair[:2]
+        shared_pmids = data_getter.get_pmids(head) & data_getter.get_pmids(tail)
+
+        all_pmids.update(shared_pmids)
+        for pmid in shared_pmids:
+            pmid_to_pairs[pmid].add((head, tail))
+
+    with open(str(args.out) + "." + str(args.worker_id), "w") as f, open(str(args.out_blinded) + "." + str(args.worker_id), "w") as f_blinded:
+        for i, pmid in enumerate(tqdm(sorted(pmid_to_pairs), desc="Crawling")):
+            if not (i % args.n_worker) == args.worker_id:
+                continue
+            pairs = pmid_to_pairs[pmid]
+            docs = list(data_getter.get_documents([pmid]))[0]
+            if docs:
+                doc = docs[0]
+                for head, tail in pairs:
+                    sentences = data_getter.get_sentences_from_document(entity1=head,
+                                                                        entity2=tail,
+                                                                        document=doc)
+                    relations = pair_to_relations[(head, tail)]
+                    for sentence in sentences:
+                        f.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text, sentence.pmid]) + "\n")
+                        f_blinded.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text_blinded, sentence.pmid]) + "\n")
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
@@ -219,13 +284,22 @@ def main():
     parser_summarize.add_argument("--cutoff", type=float, default=0.0)
     parser_summarize.add_argument('--no_association_type', action="store_true")
 
+
+    ## Build Training Data
+    parser_build_training_set = subparsers.add_parser("build_training_set")
+    parser_build_training_set.set_defaults(func=build_training_set)
+
+    parser_build_training_set.add_argument("--out", type=Path, required=True)
+    parser_build_training_set.add_argument("--out_blinded", type=Path, required=True)
+    parser_build_training_set.add_argument('--expand_species', nargs="*")
+    parser_build_training_set.add_argument("--n_worker", default=1, type=int)
+    parser_build_training_set.add_argument("--worker_id", default=0, type=int)
+    parser_build_training_set.add_argument("--triples", type=Path, required=True)
+    parser_build_training_set.add_argument('--pubtator', type=Path)
+
     args = parser.parse_args()
 
-    try:
-        args.func(args)
-    except AttributeError:
-        parser.print_usage()
-        sys.exit(1)
+    args.func(args)
 
 if __name__ == '__main__':
     main()

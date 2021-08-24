@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class PEDLDataset(Dataset):
+    # TODO adapt to new data set structure
 
     label_to_id = {'in-complex-with': 0, 'controls-state-change-of': 1,  'controls-transport-of': 2,
                         'controls-phosphorylation-of': 3, 'controls-expression-of': 4, 'catalysis-precedes': 5, 'interacts-with': 6}
