@@ -69,6 +69,8 @@ def predict(args):
     pairs_to_query = []
     for p1 in maybe_mapped_p1s:
         for p2 in maybe_mapped_p2s:
+            p1 = Entity(cuid=p1, type="Gene")
+            p2 = Entity(cuid=p2, type="Gene")
             pairs_to_query.append((p1, p2))
             if not args.skip_reverse:
                 pairs_to_query.append((p2, p1))
@@ -89,7 +91,7 @@ def predict(args):
     model.to(args.device)
 
     universe = set(maybe_mapped_p1s + maybe_mapped_p2s)
-    data_getter = DataGetter(universe, local_pubtator=args.pubtator,
+    data_getter = DataGetter(gene_universe=universe, local_pubtator=args.pubtator,
                              api_fallback=args.api_fallback,
                              expand_species=args.expand_species
                              )

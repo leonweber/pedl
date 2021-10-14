@@ -499,15 +499,15 @@ class DataGetter:
 
     def __init__(
         self,
-        gene_universe: Set[str],
-        chemical_universe: Set[str],
+        gene_universe: Optional[Set[str]] = None,
+        chemical_universe: Optional[Set[str]] = None,
         local_pubtator: Optional[Path] = None,
         n_processes: Optional[int] = None,
         api_fallback: Optional[bool] = False,
         expand_species: Optional[List[str]] = None,
     ):
-        self.gene_universe = gene_universe
-        self.chemical_universe = chemical_universe
+        self.gene_universe = gene_universe or set()
+        self.chemical_universe = chemical_universe or set()
         self.expand_species = expand_species or []
         if self.expand_species:
             self.homologue_mapping = get_homologue_mapping(
@@ -731,8 +731,7 @@ class DataGetter:
             yield [self._document_cache[i] for i in pmid_chunk]
 
         uncached_pmids = [i for i in pmids if i not in cached_pmids]
-        # pmid_to_pmcid = self.maybe_map_to_pmcid(uncached_pmids)
-        pmid_to_pmcid = {}
+        pmid_to_pmcid = self.maybe_map_to_pmcid(uncached_pmids)
 
         pmids_to_retreive = [i for i in uncached_pmids if i not in pmid_to_pmcid]
         pmcids_to_retreive = [
