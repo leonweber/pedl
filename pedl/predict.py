@@ -75,27 +75,17 @@ def predict(args):
         else:
             maybe_mapped_p2s.append(p2)
 
+    heads = [Entity(cuid, "Gene") for cuid in maybe_mapped_p1s]
+    tails = [Entity(cuid, "Gene") for cuid in maybe_mapped_p2s]
+
+    if args.num_workers > 1:
+        heads = sorted(heads)
+        heads = [head for i, head in enumerate(heads) if i % args.num_workers == args.worker_id]
+
     processed_pairs = get_processed_pairs(args.out)
 
     geneid_to_name = get_geneid_to_name()
-    pairs_to_query = []
-    pbar = tqdm(total=len(maybe_mapped_p1s) * len(maybe_mapped_p2s), desc='Building pairs')
-    for i, p1 in enumerate(maybe_mapped_p1s):
-        if (i % args.num_workers) != args.worker_id:
-            continue
-        key_p1 = p1 + "|" + "Gene"
-        for p2 in maybe_mapped_p2s:
-            key_p2 = p2 + "|" + "Gene"
-            if (key_p1, key_p2) in processed_pairs:
-                continue
-
-            head_entity = Entity(cuid=p1, type="Gene")
-            tail_entity = Entity(cuid=p2, type="Gene")
-            pairs_to_query.append((head_entity, tail_entity))
-            if not args.skip_reverse:
-                pairs_to_query.append((tail_entity, head_entity))
-            pbar.update()
-    if len(pairs_to_query) > 100 and not args.pubtator:
+    if len(heads) * len(tails) > 100 and not args.pubtator:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(pairs_to_query)} pairs. Aborting.")
         sys.exit(1)
 
@@ -115,7 +105,9 @@ def predict(args):
                                     blind_entity_types={"Gene"}
                                     )
 
-    dataset = PEDLDataset(pairs=pairs_to_query,
+    dataset = PEDLDataset(heads=heads,
+                          tails=tails,
+                          skip_pairs=processed_pairs,
                           base_model="leonweber/PEDL",
                           data_getter=data_getter,
                           sentence_max_length=500,

@@ -22,6 +22,7 @@ class BertForDistantSupervision(BertPreTrainedModel):
         self.init_weights()
 
     def forward(self, input_ids, attention_mask, use_max=False, **kwargs):
+        breakpoint()
         bert_out = self.bert(input_ids, attention_mask=attention_mask)
         x = bert_out.last_hidden_state
         e1_mask = (input_ids == self.config.e1_id).long()

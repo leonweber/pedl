@@ -29,7 +29,9 @@ class PEDLDataset(Dataset):
 
     def __init__(
         self,
-        pairs: List[Tuple[Entity, Entity]],
+        heads: List[Entity],
+        tails: List[Entity],
+        skip_pairs: List[Tuple[str, str]],
         base_model: str,
         data_getter: DataGetterAPI,
         relations: Optional[List[Set[str]]] = None,
@@ -37,8 +39,9 @@ class PEDLDataset(Dataset):
         blind_entities: bool = True,
         sentence_max_length: Optional[int] = None
     ):
+        self.heads = heads
+        self.tails = tails
         self.max_bag_size = max_bag_size
-        self.pairs = pairs
         self.tokenizer = BertTokenizerFast.from_pretrained(str(base_model))
         self.tokenizer.add_special_tokens(
             {
@@ -56,15 +59,21 @@ class PEDLDataset(Dataset):
         self.relations = relations
         self.blind_entities = blind_entities
         self.sentence_max_length = sentence_max_length
+        self.skip_pairs = skip_pairs
 
     def __len__(self):
-        return len(self.pairs)
+        return len(self.heads) * len(self.tails)
 
     def __getitem__(self, idx) -> Optional[Dict]:
         if torch.is_tensor(idx):
             idx = idx.item()
 
-        head, tail = self.pairs[idx]
+        head = self.heads[idx // len(self.tails)]
+        tail = self.tails[idx % len(self.tails)]
+
+        if (str(head), str(tail)) in self.skip_pairs:
+            return {"pair": (head, tail)}
+
         sentences = self.data_getter.get_sentences(head, tail)
 
         if self.sentence_max_length:

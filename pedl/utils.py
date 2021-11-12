@@ -368,6 +368,12 @@ class Entity:
     def __str__(self):
         return f"{self.cuid}|{self.type}"
 
+    def __lt__(self, other):
+        if not isinstance(other, Entity):
+            raise TypeError
+
+        return str(self) < str(other)
+
 
 def get_geneid_to_name():
     with open(root / "data" / "geneid_to_name.json") as f:
