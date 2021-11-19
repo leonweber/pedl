@@ -138,7 +138,7 @@ def predict(args):
             name1 = geneid_to_name.get(head.cuid, head.cuid)
             name2 = geneid_to_name.get(tail.cuid, tail.cuid)
 
-            file_out = args.out / f"{name1}-{name2}.txt"
+            file_out = args.out / f"{name1}_{name2}.txt"
 
             if head == tail:
                 f_pairs_processed.write(f"{head}\t{tail}\n")

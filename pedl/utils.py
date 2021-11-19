@@ -415,10 +415,10 @@ def build_summary_table(
     rel_to_score_sum = defaultdict(float)
     rel_to_score_max = defaultdict(float)
 
-    files = raw_dir.glob("*.txt")
-    for file in files:
+    files = list(raw_dir.glob("*.txt"))
+    for file in tqdm(files):
         with file.open() as f:
-            p1, p2 = file.name.replace(".txt", "").split("-")
+            p1, p2 = file.name.replace(".txt", "").split("_")
             for line in f:
                 fields = line.strip().split()
                 if fields:
