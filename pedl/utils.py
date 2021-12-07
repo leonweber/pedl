@@ -454,7 +454,7 @@ def build_summary_table(
 def get_hgnc_symbol_to_gene_id():
     hgnc_symbol_to_gene_id = {}
     url = "http://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt"
-    with open(cached_path(url, cache_dir=cache_root)) as f:
+    with open(cached_path(url, cache_dir=cache_root), encoding="utf8") as f:
         next(f)
         for line in f:
             fields = line.strip().split("\t")

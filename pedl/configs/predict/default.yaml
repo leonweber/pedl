@@ -9,11 +9,11 @@ p1: ???
 p2: ???
 type1: ???
 type2: ???
-out: ???
+out: "PEDL_predictions"
 model: "leonweber/PEDL"
-batch_size: None
-pubtator: None #unknown arg
-device: None
+batch_size: 1
+pubtator: localhost:9200
+device: cpu
 topk: None
 cutoff: 0.01
 max_bag_size: 1000
