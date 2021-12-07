@@ -16,6 +16,9 @@ setup(
     install_requires=required,
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    entry_points={"console_scripts": ["pedl=pedl.cli:main"]},
+    entry_points={"console_scripts": ["pedl-summarize=pedl.summarize:main",
+                                      "pedl-rebuild_pubtater_index=pedl.rebuild_pubtater_index:main",
+                                      "pedl-build_training_set=pedl.build_training_set:main",
+                                      "pedl-predict=pedl.predict:main"]},
     package_data={"pedl": ["data/*"]}
 )

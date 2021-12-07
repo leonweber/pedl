@@ -1,0 +1,5 @@
+# @package _global_
+
+# specify here default training configuration
+defaults:
+  -database: default_database.yaml

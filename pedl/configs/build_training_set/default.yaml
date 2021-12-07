@@ -1,0 +1,25 @@
+# path to original working directory
+# hydra hijacks working directory by changing it to the current log directory,
+# so it's useful to have this path as a special variable
+# learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
+work_dir: ${hydra:runtime.cwd}
+
+out: ???
+out_blinded: ???
+expand_species: ???
+n_worker: 1
+worker_id: 0
+triples: ???
+pubtator: False
+
+  ## Build Training Data
+  #parser_build_training_set = subparsers.add_parser("build_training_set")
+  #parser_build_training_set.set_defaults(func=build_training_set)
+
+  #parser_build_training_set.add_argument("--out", type=Path, required=True)
+  #parser_build_training_set.add_argument("--out_blinded", type=Path, required=True)
+  #parser_build_training_set.add_argument('--expand_species', nargs="*")
+  #parser_build_training_set.add_argument("--n_worker", default=1, type=int)
+  #parser_build_training_set.add_argument("--worker_id", default=0, type=int)
+  #parser_build_training_set.add_argument("--triples", type=Path, required=True)
+  #parser_build_training_set.add_argument('--pubtator', action="store_true")

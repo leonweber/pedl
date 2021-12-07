@@ -1,0 +1,47 @@
+# path to original working directory
+# hydra hijacks working directory by changing it to the current log directory,
+# so it's useful to have this path as a special variable
+# learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
+work_dir: ${hydra:runtime.cwd}
+
+
+p1: ???
+p2: ???
+type1: ???
+type2: ???
+out: ???
+model: "leonweber/PEDL"
+batch_size: None
+pubtator: None #unknown arg
+device: None
+topk: None
+cutoff: 0.01
+max_bag_size: 1000
+api_fallback: False
+skip_reverse: False
+skip_invalid: False
+verbose: False
+expand_species:
+multi_sentence: False
+num_workers: 1
+worker_id: 0
+    #parser_predict.add_argument('--p1', required=True, nargs="+")
+    #parser_predict.add_argument('--p2', required=True, nargs="+")
+    #parser_predict.add_argument('--type1', required=True, nargs="+")
+    #parser_predict.add_argument('--type2', required=True, nargs="+")
+    #parser_predict.add_argument('--out', type=Path, required=True)
+    #parser_predict.add_argument('--model', default="leonweber/PEDL")
+    #parser_predict.add_argument('--batch_size', default=None, type=int)
+    #parser_predict.add_argument('--pubtator')
+    #parser_predict.add_argument('--device', default=None)
+    #parser_predict.add_argument('--topk', type=int, default=None)
+    #parser_predict.add_argument('--cutoff', type=float, default=0.01)
+    #parser_predict.add_argument('--max_bag_size', type=int, default=1000)
+    #parser_predict.add_argument('--api_fallback', action="store_true")
+    #parser_predict.add_argument('--skip_reverse', action="store_true")
+    #parser_predict.add_argument('--skip_invalid', action="store_true")
+    #parser_predict.add_argument('--verbose', action="store_true")
+    #parser_predict.add_argument('--expand_species', nargs="*")
+    #parser_predict.add_argument('--multi_sentence', action="store_true")
+    #parser_predict.add_argument('--num_workers', type=int, default=1)
+    #parser_predict.add_argument('--worker_id', type=int, default=0)
