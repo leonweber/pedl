@@ -16,6 +16,7 @@ import bioc
 import numpy as np
 from transformers.file_utils import default_cache_path
 from segtok.segmenter import split_multi
+import pandas as pd
 
 
 cache_root = Path(
@@ -409,8 +410,16 @@ def get_gene_mapping(from_db: str, to_db: str):
 
 def build_summary_table(
     raw_dir: Path, score_cutoff: float = 0.0, no_association_type: bool = False
-) -> List[Tuple[str, float]]:
-    table = []
+) -> pd.DataFrame:
+    df = {
+        "head": [],
+        "association type": [],
+        "tail": [],
+        "score (sum)": [],
+        "score (max)": [],
+        "pmids": []
+    }
+
 
     rel_to_score_sum = defaultdict(float)
     rel_to_score_max = defaultdict(float)
@@ -448,10 +457,15 @@ def build_summary_table(
     for rel, score_sum in rel_to_score_sum.items():
         score_max = rel_to_score_max[rel]
         pmids = ",".join(rel_to_pmids[rel])
-        row = rel + (score_sum, score_max, pmids)
-        table.append(row)
+        df["head"].append(rel[0])
+        df["association type"].append(rel[1])
+        df["tail"].append(rel[2])
+        df["score (sum)"].append(score_sum)
+        df["score (max)"].append(score_max)
+        df["pmids"].append(pmids)
 
-    return sorted(table, key=itemgetter(3), reverse=True)
+    return pd.DataFrame(df)
+
 
 
 def get_hgnc_symbol_to_gene_id():
