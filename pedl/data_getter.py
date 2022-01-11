@@ -35,8 +35,9 @@ class DataGetterPubtator(DataGetter):
         self.types_to_blind = {"gene"}
         self.client = Elasticsearch(hosts=[host], port=port, timeout=3000)
 
-    def get_sentences(self, head: Entity, tail: Entity):
+    def get_sentences(self, head: Entity, tail: Entity, pmids=None):
         processed_sentences = []
+
         query = {
             "bool": {
                 "must": [
@@ -45,10 +46,14 @@ class DataGetterPubtator(DataGetter):
                 ]
             }
         }
-        result = self.client.search(query=query, index="pubtator_masked", size=1000)
+
+        result = self.client.search(query=query, index="pubtator_masked", size=10000)
         retrieved_sentences = result["hits"]["hits"]
+
         for sentence in retrieved_sentences:
             sentence = sentence["_source"]
+            if pmids and sentence["pmid"] not in pmids:
+                continue
 
             spans_head = sentence["entities"][str(head)]
             spans_tail = sentence["entities"][str(tail)]

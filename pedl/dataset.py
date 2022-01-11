@@ -37,7 +37,8 @@ class PEDLDataset(Dataset):
         relations: Optional[List[Set[str]]] = None,
         max_bag_size: Optional[int] = None,
         blind_entities: bool = True,
-        sentence_max_length: Optional[int] = None
+        sentence_max_length: Optional[int] = None,
+        pmids: Optional[List[str]] = None,
     ):
         self.heads = heads
         self.tails = tails
@@ -60,6 +61,10 @@ class PEDLDataset(Dataset):
         self.blind_entities = blind_entities
         self.sentence_max_length = sentence_max_length
         self.skip_pairs = skip_pairs
+        if pmids:
+            self.pmids = set(pmids)
+        else:
+            self.pmids = None
 
     def __len__(self):
         return len(self.heads) * len(self.tails)
@@ -74,7 +79,7 @@ class PEDLDataset(Dataset):
         if (str(head), str(tail)) in self.skip_pairs:
             return {"pair": (head, tail)}
 
-        sentences = self.data_getter.get_sentences(head, tail)
+        sentences = self.data_getter.get_sentences(head, tail, pmids=self.pmids)
 
         if self.sentence_max_length:
             sentences = [s for s in sentences if len(s.text) < self.sentence_max_length]

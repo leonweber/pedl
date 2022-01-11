@@ -105,13 +105,20 @@ def predict(args):
                                     blind_entity_types={"Gene"}
                                     )
 
+    if args.pmids:
+        with args.pmids.open() as f:
+            pmids = f.read().split("\n")
+    else:
+        pmids = None
+
     dataset = PEDLDataset(heads=heads,
                           tails=tails,
                           skip_pairs=processed_pairs,
                           base_model="leonweber/PEDL",
                           data_getter=data_getter,
                           sentence_max_length=500,
-                          max_bag_size=args.max_bag_size)
+                          max_bag_size=args.max_bag_size,
+                          pmids=pmids)
 
     model = BertForDistantSupervision.from_pretrained(args.model,
                                                       tokenizer=dataset.tokenizer)
@@ -126,8 +133,10 @@ def predict(args):
 
     os.makedirs(args.out, exist_ok=True)
 
-    dataloader = DataLoader(dataset, num_workers=4, batch_size=1,
-                            collate_fn=model.collate_fn, prefetch_factor=100)
+    # dataloader = DataLoader(dataset, num_workers=4, batch_size=1,
+    #                         collate_fn=model.collate_fn, prefetch_factor=100)
+    dataloader = DataLoader(dataset, num_workers=0, batch_size=1,
+                            collate_fn=model.collate_fn)
     with (args.out / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader):
             head, tail = datapoint["pair"]

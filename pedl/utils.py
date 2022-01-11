@@ -414,6 +414,7 @@ def build_summary_table(
 
     rel_to_score_sum = defaultdict(float)
     rel_to_score_max = defaultdict(float)
+    rel_to_pmids = defaultdict(set)
 
     hgnc_symbols = set(get_hgnc_symbol_to_gene_id().keys())
 
@@ -442,10 +443,12 @@ def build_summary_table(
                         rel_to_score_max[rel] = max(
                             float(fields[1]), rel_to_score_max[rel]
                         )
+                        rel_to_pmids[rel].add(fields[2])
 
     for rel, score_sum in rel_to_score_sum.items():
         score_max = rel_to_score_max[rel]
-        row = rel + (score_sum, score_max)
+        pmids = ",".join(rel_to_pmids[rel])
+        row = rel + (score_sum, score_max, pmids)
         table.append(row)
 
     return sorted(table, key=itemgetter(3), reverse=True)

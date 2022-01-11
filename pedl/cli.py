@@ -23,10 +23,10 @@ def summarize(args):
     else:
         file_out = args.out
     with open(file_out, "w") as f:
-        f.write(f"p1\tassociation type\tp2\tscore (sum)\tscore (max)\n")
+        f.write(f"p1\tassociation type\tp2\tscore (sum)\tscore (max)\tpmids\n")
         for row in build_summary_table(args.path_to_files, score_cutoff=args.cutoff,
                                        no_association_type=args.no_association_type):
-            f.write(f"{row[0]}\t{row[1]}\t{row[2]}\t{row[3]:.2f}\t{row[4]:.2f}\n")
+            f.write(f"{row[0]}\t{row[1]}\t{row[2]}\t{row[3]:.2f}\t{row[4]:.2f}{row[5]}\n")
 
 
 def build_training_set(args):
@@ -125,6 +125,7 @@ def main():
     parser_predict.add_argument('--multi_sentence', action="store_true")
     parser_predict.add_argument('--num_workers', type=int, default=1)
     parser_predict.add_argument('--worker_id', type=int, default=0)
+    parser_predict.add_argument('--pmids', type=Path, default=None)
     parser_predict.set_defaults(func=predict)
 
     parser_summarize = subparsers.add_parser("summarize")
