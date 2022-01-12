@@ -1,3 +1,4 @@
+import string
 from collections import defaultdict
 from operator import itemgetter
 from typing import Optional, Dict, List, Set
@@ -11,7 +12,7 @@ from openpyxl import Workbook
 import pandas as pd
 import numpy as np
 import requests
-
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from pedl.utils import build_summary_table
 
@@ -27,38 +28,44 @@ def get_pmid_to_mesh_terms(mesh_terms: Set[str]) -> Dict[str, List[str]]:
 
     for mesh_term in mesh_terms:
         n_processed = 0
-        result = requests.get(base_url, params={"db": "pubmed",
-                                                "term": f"{mesh_term}[MESH]",
-                                                "tool": "PEDL",
-                                                "email": "weberple@hu-berlin.de",
-                                                "retmode": "json",
-                                                "retmax": ESEARCH_MAX_COUNT
-                                                }
-                              )
+        result = requests.get(
+            base_url,
+            params={
+                "db": "pubmed",
+                "term": f"{mesh_term}[MESH]",
+                "tool": "PEDL",
+                "email": "weberple@hu-berlin.de",
+                "retmode": "json",
+                "retmax": ESEARCH_MAX_COUNT,
+            },
+        )
         total_count = int(result.json()["esearchresult"]["count"])
+        if total_count == 0:
+            print(
+                f"PubMed search for {mesh_term}[MESH] did not yield any articles. Is this really a valid mesh term?"
+            )
         n_processed += len(result.json()["esearchresult"]["idlist"])
         for pmid in result.json()["esearchresult"]["idlist"]:
             pmid_to_mesh_terms[pmid].append(mesh_term)
 
         while n_processed < total_count:
-            result = requests.get(base_url, params={"db": "pubmed",
-                                                    "term": f"{mesh_term}[MESH]",
-                                                    "tool": "PEDL",
-                                                    "email": "weberple@hu-berlin.de",
-                                                    "retmode": "json",
-                                                    "retmax": ESEARCH_MAX_COUNT,
-                                                    "retstart": n_processed
-                                                    }
-                                  )
+            result = requests.get(
+                base_url,
+                params={
+                    "db": "pubmed",
+                    "term": f"{mesh_term}[MESH]",
+                    "tool": "PEDL",
+                    "email": "weberple@hu-berlin.de",
+                    "retmode": "json",
+                    "retmax": ESEARCH_MAX_COUNT,
+                    "retstart": n_processed,
+                },
+            )
             n_processed += len(result.json()["esearchresult"]["idlist"])
             for pmid in result.json()["esearchresult"]["idlist"]:
                 pmid_to_mesh_terms[pmid].append(mesh_term)
 
     return pmid_to_mesh_terms
-
-
-
-
 
 
 def adjust_sheet_width(sheet):
@@ -99,29 +106,57 @@ def _add_value_choices(sheet):
     data_validation.add("K2:K10000")
     sheet.add_data_validation(data_validation)
 
-def df_to_workbook(df: pd.DataFrame, ppa_dir: Path, topk:int  = 5,
-                   threshold: float = 0.5, pmid_to_mesh_terms: Optional[Dict] = None,
-                   annotation_mode: bool = False
-                   ) -> Workbook:
-    wb = Workbook()
-    sheet = wb.active
-    header = ["head", "association type", "tail", "text", "pubmed", "article score", "MESH terms"]
+
+def _add_table(sheet, num_rows, num_cols):
+    last_col = string.ascii_uppercase[num_cols - 1]
+    ref = f"A1:{last_col}{num_rows}"
+    table = Table(displayName="Table1", ref=ref)
+
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleLight1",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=True,
+    )
+    sheet.add_table(table)
+
+
+def fill_sheet_from_df(
+    sheet,
+    df: pd.DataFrame,
+    ppa_dir: Path,
+    topk: int = 5,
+    threshold: float = 0.5,
+    pmid_to_mesh_terms: Optional[Dict] = None,
+    annotation_mode: bool = False,
+):
+    header = [
+        "head",
+        "association type",
+        "tail",
+        "text",
+        "pubmed",
+        "article score",
+        "MESH terms",
+    ]
     if annotation_mode:
         header += ["correct", "useful", "why incorrect?", "why not useful?", "comment"]
     for cell, value in zip(sheet["A1":"L1"][0], header):
         cell.value = value
         cell.font = Font(bold=True)
 
-    idx_next_free_row = 2
+    idx_next_free_row = 0
+
+    all_ppa_data = []
+
     for i, (_, row) in enumerate(df.iterrows()):
-        try:
-            fname = ppa_dir / ((row["head"] + "_" + row["tail"]).upper() + ".txt")
-        except TypeError:
-            print("Warning: Skipping invalid row. Fix this before producing project results")
-            continue
-        assert fname.exists()
-        pmid_to_score = defaultdict(float)
-        pmid_to_fields = defaultdict(list)
+        ppa_data = {"row": row, "score": 0}
+        fname = ppa_dir / ((row["head"] + "-_-" + row["tail"]).upper() + ".txt")
+        assert fname.exists(), f"{fname} does not exist"
+        ppa_data["pmid_to_score"] = defaultdict(float)
+        ppa_data["pmid_to_fields"] = defaultdict(list)
+
         with fname.open() as f:
             for line in f:
                 fields = line.strip().split("\t")
@@ -133,53 +168,91 @@ def df_to_workbook(df: pd.DataFrame, ppa_dir: Path, topk:int  = 5,
                     if pmid_to_mesh_terms and pmid not in pmid_to_mesh_terms:
                         continue
 
-                    pmid_to_score[pmid] += float(score)
-                    pmid_to_fields[pmid].append(fields)
+                    ppa_data["pmid_to_score"][pmid] += float(score)
+                    ppa_data["pmid_to_fields"][pmid].append(fields)
+                    ppa_data["score"] += float(score)
+        all_ppa_data.append(ppa_data)
 
-            for pmid, article_score in sorted(pmid_to_score.items(), key=itemgetter(1), reverse=True)[:topk]:
-                fields = pmid_to_fields[pmid][0]
-                ppa_type, score, pmid, text, _ = fields
-                sheet[f"A{idx_next_free_row + 2}"].value = row["head"]
-                sheet[f"C{idx_next_free_row + 2}"].value = row["tail"]
-                sheet[f"B{idx_next_free_row + 2}"].value = row["association type"]
-                sheet[f"D{idx_next_free_row + 2}"].value = text
-                sheet[f"E{idx_next_free_row + 2}"].hyperlink = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-                sheet[f"E{idx_next_free_row + 2}"].value = pmid
-                sheet[f"B{idx_next_free_row + 2}"].value = row["association type"]
-                sheet[f"E{idx_next_free_row + 2}"].style = "Hyperlink"
-                sheet[f"F{idx_next_free_row + 2}"].value = article_score
+    for ppa_data in sorted(all_ppa_data, key=itemgetter("score"), reverse=True):
+        for i, (pmid, article_score) in enumerate(sorted(
+            ppa_data["pmid_to_score"].items(), key=itemgetter(1), reverse=True
+        )[:topk]):
+            fields = ppa_data["pmid_to_fields"][pmid][0]
+            ppa_type, score, pmid, text, _ = fields
+            sheet[f"A{idx_next_free_row + 2}"].value = ppa_data["row"]["head"]
+            sheet[f"C{idx_next_free_row + 2}"].value = ppa_data["row"]["tail"]
+            sheet[f"B{idx_next_free_row + 2}"].value = ppa_data["row"][
+                "association type"
+            ]
+            sheet[f"D{idx_next_free_row + 2}"].value = text
+            sheet[
+                f"E{idx_next_free_row + 2}"
+            ].hyperlink = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+            sheet[f"E{idx_next_free_row + 2}"].value = pmid
+            sheet[f"B{idx_next_free_row + 2}"].value = ppa_data["row"][
+                "association type"
+            ]
+            sheet[f"E{idx_next_free_row + 2}"].style = "Hyperlink"
+            sheet[f"F{idx_next_free_row + 2}"].value = article_score
+            if i == 0:
+                sheet[f"F{idx_next_free_row + 2}"].font = Font(bold=True)
 
-                if pmid in pmid_to_mesh_terms:
-                    sheet[f"G{idx_next_free_row + 2}"].value = ", ".join(pmid_to_mesh_terms[pmid])
-                idx_next_free_row += 1
+            if pmid in pmid_to_mesh_terms:
+                sheet[f"G{idx_next_free_row + 2}"].value = ", ".join(
+                    pmid_to_mesh_terms[pmid]
+                )
+            idx_next_free_row += 1
 
     if annotation_mode:
         _add_value_choices(sheet)
     adjust_sheet_width(sheet)
+    if idx_next_free_row > 0:
+        _add_table(sheet, num_rows=idx_next_free_row + 1, num_cols=len(header))
 
-    return wb
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--ppa_dir", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--upstream", type=Path, required=False)
-    parser.add_argument("--mesh_terms", nargs="*")
-    parser.add_argument("--threshold", type=float, default=0.5)
-    parser.add_argument("--topk", type=int, default=5)
-    parser.add_argument("--annotation", action="store_true")
-    args = parser.parse_args()
-    args.output: Path
-    args.output = args.output.with_suffix("")
-
+def summarize_excel(args):
     pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(args.mesh_terms))
 
-    df_summary = build_summary_table(
-        raw_dir=args.ppa_dir,
-        score_cutoff=args.threshold
-        )
+    df_summary = build_summary_table(raw_dir=args.ppa_dir, score_cutoff=args.threshold)
 
+    wb = Workbook()
+    sheet = wb.active
+
+    if args.set_a:
+        with args.set_a.open() as f:
+            set_a = set(f.read().split("\n"))
+            df_a_to_b = df_summary[df_summary["head"].isin(set_a)]
+            df_b_to_a = df_summary[df_summary["tail"].isin(set_a)]
+            sheet.title = f"{args.set_a.with_suffix('').name} -> other"
+            fill_sheet_from_df(
+                sheet=sheet,
+                df=df_a_to_b,
+                ppa_dir=args.ppa_dir,
+                threshold=args.threshold,
+                topk=args.topk,
+                pmid_to_mesh_terms=pmid_to_mesh_terms,
+                annotation_mode=args.annotation,
+            )
+
+            sheet = wb.create_sheet(title=f"other -> {args.set_a.with_suffix('').name}")
+            fill_sheet_from_df(
+                sheet=sheet,
+                df=df_b_to_a,
+                ppa_dir=args.ppa_dir,
+                threshold=args.threshold,
+                topk=args.topk,
+                pmid_to_mesh_terms=pmid_to_mesh_terms,
+                annotation_mode=args.annotation,
+            )
+    else:
+        fill_sheet_from_df(
+            sheet=sheet,
+            df=df_summary,
+            ppa_dir=args.ppa_dir,
+            threshold=args.threshold,
+            topk=args.topk,
+            pmid_to_mesh_terms=pmid_to_mesh_terms,
+            annotation_mode=args.annotation,
+        )
     output_file = args.output.with_suffix(".xlsx")
-    wb = df_to_workbook(df_summary, args.ppa_dir, threshold=args.threshold, topk=args.topk, pmid_to_mesh_terms=pmid_to_mesh_terms,
-                        annotation_mode=args.annotation)
     wb.save(output_file)

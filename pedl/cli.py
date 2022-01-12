@@ -13,6 +13,7 @@ from pedl.utils import build_summary_table, \
     Entity
 from pedl.data_getter import DataGetterAPI
 from pedl import pubtator_elasticsearch
+from pedl.summarize_excel import summarize_excel
 
 random.seed(42)
 
@@ -149,12 +150,22 @@ def main():
     parser_build_training_set.add_argument("--triples", type=Path, required=True)
     parser_build_training_set.add_argument('--pubtator', action="store_true")
 
-
     ## Rebuild PubTator
     parser_rebuild_pubtator_index = subparsers.add_parser("rebuild_pubtator_index")
     parser_rebuild_pubtator_index.set_defaults(func=rebuild_pubtator_index)
     parser_rebuild_pubtator_index.add_argument("--pubtator", required=True, type=Path)
     parser_rebuild_pubtator_index.add_argument("--n_processes", type=int, default=None)
+
+    ## Summarize Excel
+    parser_summarize_excel = subparsers.add_parser("summarize_excel")
+    parser_summarize_excel.set_defaults(func=summarize_excel)
+    parser_summarize_excel.add_argument("--ppa_dir", type=Path, required=True)
+    parser_summarize_excel.add_argument("--output", type=Path, required=True)
+    parser_summarize_excel.add_argument("--set_a", type=Path, required=False)
+    parser_summarize_excel.add_argument("--mesh_terms", nargs="*")
+    parser_summarize_excel.add_argument("--threshold", type=float, default=0.5)
+    parser_summarize_excel.add_argument("--topk", type=int, default=5)
+    parser_summarize_excel.add_argument("--annotation", action="store_true")
 
     args = parser.parse_args()
 
