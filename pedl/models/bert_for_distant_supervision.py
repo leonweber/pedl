@@ -87,7 +87,3 @@ class BertForDistantSupervision(BertPreTrainedModel):
 
         return logits_all, meta_all
 
-
-
-
-

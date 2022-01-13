@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tempfile
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from operator import itemgetter
@@ -15,7 +16,8 @@ import requests
 import bioc
 import numpy as np
 from transformers.file_utils import default_cache_path
-from segtok.segmenter import split_multi
+from pytorch_lightning.utilities import rank_zero_only
+from segtok.segmenter import split_multi, split_single
 
 
 cache_root = Path(
@@ -137,6 +139,18 @@ class Tqdm:
 
         return _tqdm(*args, **new_kwargs)
 
+def get_logger(name=__name__, level=logging.INFO) -> logging.Logger:
+    """Initializes multi-GPU-friendly python logger."""
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # this ensures all logging levels get marked with the rank zero decorator
+    # otherwise logs would get multiplied for each GPU process in multi-GPU setup
+    for level in ("debug", "info", "warning", "error", "exception", "fatal", "critical"):
+        setattr(logger, level, rank_zero_only(getattr(logger, level)))
+
+    return logger
 
 def get_from_cache(url: str, cache_dir: Path = None) -> Path:
     """
@@ -374,6 +388,17 @@ class Entity:
 
         return str(self) < str(other)
 
+@dataclass
+class DatasetMetaInformation:
+    label_to_id: dict
+    id_to_label: dict
+    pair_types: set
+    name: str
+    type: str
+
+    def to(self, device):
+        return self
+
 
 def get_geneid_to_name():
     with open(root / "data" / "geneid_to_name.json") as f:
@@ -450,6 +475,11 @@ def build_summary_table(
 
     return sorted(table, key=itemgetter(3), reverse=True)
 
+def overlaps(a, b):
+    a = [int(i) for i in a]
+    b = [int(i) for i in b]
+    return max(0, min(a[1], b[1]) - max(a[0], b[0]))
+
 
 def get_hgnc_symbol_to_gene_id():
     hgnc_symbol_to_gene_id = {}
@@ -464,3 +494,212 @@ def get_hgnc_symbol_to_gene_id():
                 hgnc_symbol_to_gene_id[symbol] = gene_id
 
     return hgnc_symbol_to_gene_id
+
+
+def insert_pair_markers(text, head, tail, sentence_offset, mark_with_special_tokens, blind_entities):
+    if mark_with_special_tokens:
+        head_start_marker = '<e1>'
+        tail_start_marker = '<e2>'
+        head_end_marker = '</e1>'
+        tail_end_marker = '</e2>'
+    else:
+        head_start_marker = "@"
+        tail_start_marker = "@"
+        head_end_marker = "$"
+        tail_end_marker = "$"
+
+
+    starts = (
+        np.array([head.locations[0].offset, tail.locations[0].offset]) - sentence_offset
+    )
+    ends = starts + [head.locations[0].length, tail.locations[0].length]
+
+
+    if blind_entities:
+        span_e1 = (starts[0], ends[0])
+        span_e2 = (starts[1], ends[1])
+        if overlaps(span_e1, span_e2):
+            delete_span = (starts.min(), ends.max())
+            text, starts, ends = delete_consistently(from_idx=delete_span[0], to_idx=delete_span[1], text=text, starts=starts, ends=ends)
+            text, starts, ends = insert_consistently(offset=starts[0], text=text, insertion="HEAD-TAIL", starts=starts, ends=ends)
+            starts -= len("HEAD-TAIL")
+            ends[:] = starts + len("HEAD-TAIL")
+        else:
+            text, starts, ends = delete_consistently(from_idx=starts[0], to_idx=ends[0], text=text, starts=starts, ends=ends)
+            text, starts, ends = insert_consistently(offset=starts[0], text=text, insertion="HEAD", starts=starts, ends=ends)
+            starts[0] -= len("HEAD")
+            ends[0] = starts[0] + len("HEAD")
+
+            text, starts, ends = delete_consistently(from_idx=starts[1], to_idx=ends[1], text=text, starts=starts, ends=ends)
+            text, starts, ends = insert_consistently(offset=starts[1], text=text, insertion="TAIL", starts=starts, ends=ends)
+            starts[1] -= len("TAIL")
+            ends[1] = starts[1] + len("TAIL")
+
+    text, starts, ends = insert_consistently(
+        offset=starts[0], text=text, insertion=head_start_marker, starts=starts, ends=ends
+    )
+    text, starts, ends = insert_consistently(
+        offset=ends[0], text=text, insertion=head_end_marker, starts=starts, ends=ends
+    )
+    text, starts, ends = insert_consistently(
+        offset=starts[1], text=text, insertion=tail_start_marker, starts=starts, ends=ends
+    )
+    text, starts, ends = insert_consistently(
+        offset=ends[1], text=text, insertion=tail_end_marker, starts=starts, ends=ends
+    )
+    # marked_head = (
+    #     text[text.index('<e1>') : text.index('</e1>')]
+    #     .replace('<e1>', "")
+    #     .replace('</e1>', "")
+    #     .replace('<e2>', "")
+    #     .replace('</e2>', "")
+    # )
+    # marked_tail = (
+    #     text[text.index('<e2>') : text.index('</e2>')]
+    #     .replace('<e1>', "")
+    #     .replace('</e1>', "")
+    #     .replace('<e2>', "")
+    #     .replace('</e2>', "")
+    # )
+    # assert (
+    #     marked_head == head.text or not head.text.isalnum()
+    # )  # skip unicode errors and disjoint entities from ddi
+    # assert (
+    #     marked_tail == tail.text or not tail.text.isalnum()
+    # )  # skip unicode errors and disjoint entities from ddi
+
+    return text
+
+
+def sentence_to_examples(
+    sentence, tokenizer, doc_context, pair_types, mark_with_special_tokens, blind_entities, label_to_id=None, max_length=512, use_none_class=False,
+        entity_to_side_information=None, pair_to_side_information=None, entity_to_embedding_index=None
+):
+    examples = []
+
+    pair_to_side_information = pair_to_side_information or {}
+    entity_to_side_information = entity_to_side_information or {}
+
+    ann_id_to_ann = {}
+    for ann in sentence.annotations:
+        ann_id_to_ann[ann.id] = ann
+
+    pair_to_relations = defaultdict(set)
+    for rel in sentence.relations:
+        head = rel.get_node("head").refid
+        tail = rel.get_node("tail").refid
+        rel = rel.infons["type"]
+        pair_to_relations[(head, tail)].add(rel)
+
+    for head in sentence.annotations:
+        for tail in sentence.annotations:
+            if (
+                pair_types
+                and (head.infons["type"], tail.infons["type"]) not in pair_types
+            ):
+                continue
+            if head.id == tail.id:
+                continue
+            if doc_context:
+                text = insert_pair_markers(
+                    text=doc_context, head=head, tail=tail, sentence_offset=0, mark_with_special_tokens=mark_with_special_tokens, blind_entities=blind_entities
+                )
+            else:
+                text = insert_pair_markers(
+                    text=sentence.text,
+                    head=head,
+                    tail=tail,
+                    sentence_offset=sentence.offset,
+                    mark_with_special_tokens=mark_with_special_tokens, blind_entities=blind_entities
+                )
+
+            pair_side_info = pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
+
+            head_side_info = entity_to_side_information.get(head.infons["identifier"], "")
+            tail_side_info = entity_to_side_information.get(tail.infons["identifier"], "")
+
+            if head_side_info and tail_side_info:
+                head_side_info = split_single(head_side_info)[0]
+                tail_side_info = split_single(tail_side_info)[0]
+
+            side_info = f"{pair_side_info} | {head_side_info} | {tail_side_info} [SEP]"
+
+            if mark_with_special_tokens:
+                marker = '</e1>'
+            else:
+                marker = "@"
+
+            sentences_text = split_single(text)
+            idx_pair_sentence = [i for i, s in enumerate(sentences_text) if marker in s][0]
+            chosen_sentences = [sentences_text[idx_pair_sentence]]
+
+            # Prepend Context
+            i = idx_pair_sentence-1
+            while i >= 0:
+                features_text = tokenizer.encode_plus(
+                    text=" ".join([sentences_text[i]] + chosen_sentences),  max_length=max_length, truncation="longest_first"
+                )
+                len_remaining = max_length - len(features_text.input_ids)
+
+                if len_remaining <= 0:
+                    break
+                else:
+                    chosen_sentences = [sentences_text[i]] + chosen_sentences
+                i -= 1
+
+            # Append Context
+            i = idx_pair_sentence+1
+            while i < len(sentences_text):
+                features_text = tokenizer.encode_plus(
+                    text=" ".join(chosen_sentences + [sentences_text[i]]),  max_length=max_length, truncation="longest_first"
+                )
+                len_remaining = max_length - len(features_text.input_ids)
+
+                if len_remaining <= 0:
+                    break
+                else:
+                    chosen_sentences = chosen_sentences + [sentences_text[i]]
+                i += 1
+
+            features_text = tokenizer.encode_plus(
+                text=" ".join(chosen_sentences),  max_length=max_length, truncation="longest_first"
+            )
+            len_remaining = max_length - len(features_text.input_ids)
+
+            features_side = tokenizer.encode_plus(
+                side_info, max_length=len_remaining, truncation="longest_first", add_special_tokens=False
+            )
+
+            features = {
+                "input_ids": features_text.input_ids + features_side.input_ids,
+                "attention_mask": features_text.attention_mask + features_side.attention_mask
+            }
+
+            if "token_type_ids" in features_text:
+                features["token_type_ids"] = [0] * len(features_text.input_ids) + [1] * len(features_side.input_ids)
+
+            if mark_with_special_tokens:
+                try:
+                    assert "<e1>" in tokenizer.decode(features["input_ids"])
+                    assert "</e1>" in tokenizer.decode(features["input_ids"])
+                    assert "<e2>" in tokenizer.decode(features["input_ids"])
+                    assert "</e2>" in tokenizer.decode(features["input_ids"])
+                except AssertionError:
+                    log.warning("Truncated entity")
+                    continue  # entity was truncated
+
+            if entity_to_embedding_index:
+                features["e1_embedding_index"] = entity_to_embedding_index.get("MESH:" + head.infons["identifier"].split("|")[0], -1) + 1
+                features["e2_embedding_index"] = entity_to_embedding_index.get("NCBI:" + tail.infons["identifier"].split("|")[0], -1) + 1
+
+            if label_to_id:
+                features["labels"] = np.zeros(len(label_to_id))
+                for label in pair_to_relations[(head.id, tail.id)]:
+                    features["labels"][label_to_id[label]] = 1
+
+                if use_none_class and features["labels"].sum() == 0:
+                    features["labels"][0] = 1
+
+            examples.append({"head": head.id, "tail": tail.id, "features": features})
+
+    return examples

@@ -12,14 +12,14 @@ from pedl.data_getter import DataGetterAPI
 
 
 @hydra.main(config_path="../configs/build_training_set", config_name="default.yaml")
-def build_training_set(config: DictConfig):
+def build_training_set(cfg: DictConfig):
     pair_to_relations = defaultdict(set)
     pmid_to_pairs = defaultdict(set)
 
     gene_universe = set()
     chemical_universe = set()
 
-    with config.triples.open() as f:
+    with cfg.triples.open() as f:
         for line in f:
             fields = line.strip().split("\t")
             if fields:
@@ -43,7 +43,7 @@ def build_training_set(config: DictConfig):
 
     data_getter = DataGetterAPI(chemical_universe=chemical_universe,
                                 gene_universe=gene_universe,
-                                expand_species=config.expand_species)
+                                expand_species=cfg.expand_species)
 
     all_pmids = set()
 
@@ -56,9 +56,9 @@ def build_training_set(config: DictConfig):
         for pmid in shared_pmids:
             pmid_to_pairs[pmid].add((head, tail))
 
-    with open(str(config.out) + "." + str(config.worker_id), "w") as f, open(str(config.out_blinded) + "." + str(config.worker_id), "w") as f_blinded:
+    with open(str(cfg.out) + "." + str(cfg.worker_id), "w") as f, open(str(cfg.out_blinded) + "." + str(cfg.worker_id), "w") as f_blinded:
         for i, pmid in enumerate(tqdm(sorted(pmid_to_pairs), desc="Crawling")):
-            if not (i % config.n_worker) == config.worker_id:
+            if not (i % cfg.n_worker) == cfg.worker_id:
                 continue
             pairs = pmid_to_pairs[pmid]
             docs = list(data_getter.get_documents([pmid]))[0]

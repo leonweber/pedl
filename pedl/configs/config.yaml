@@ -1,5 +1,12 @@
 # @package _global_
 
 # specify here default training configuration
+
+
 defaults:
-  -database: default_database.yaml
+  - predict: default.yaml
+  - summarize: default.yaml
+  - rebuild_pubtator_index: default.yaml
+  - build_training_set: default.yaml
+  - proteins: entities/proteins.yamll
+  - chemicals: entities/chemicals.yaml
