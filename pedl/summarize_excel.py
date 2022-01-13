@@ -220,6 +220,20 @@ def fill_sheet_from_df(
         _add_table(sheet, num_rows=idx_next_free_row + 1, num_cols=len(header))
 
 
+def _get_ppas_from_sheet(sheet):
+    ppas = set()
+
+    it = zip(sheet["A"], sheet["B"], sheet["C"])
+    next(it) # skip header
+    for head, rel, tail in it:
+        ppa = (head.value, rel.value, tail.value)
+        if all(ppa):
+            ppas.add(ppa)
+
+    return ppas
+
+
+
 def summarize_excel(args):
     if args.mesh_terms:
         pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(args.mesh_terms))
@@ -246,13 +260,7 @@ def summarize_excel(args):
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
                 annotation_mode=args.annotation,
             )
-
-            summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
-            for row in dataframe_to_rows(df_a_to_b.sort_values("score (sum)", ascending=False),
-                                         index=False, header=True):
-                summary_sheet.append(row)
-            _add_table(summary_sheet, num_rows=len(df_a_to_b),
-                       num_cols=len(df_a_to_b.columns))
+            _add_summary_sheet(df_a_to_b, sheet, wb)
 
             sheet = wb.create_sheet(title=f"other -> {args.set_a.with_suffix('').name}"[:31])
             fill_sheet_from_df(
@@ -264,13 +272,7 @@ def summarize_excel(args):
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
                 annotation_mode=args.annotation,
             )
-
-            summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
-            for row in dataframe_to_rows(df_b_to_a.sort_values("score (sum)", ascending=False),
-                                         index=False, header=True):
-                summary_sheet.append(row)
-            _add_table(summary_sheet, num_rows=len(df_b_to_a),
-                       num_cols=len(df_b_to_a.columns))
+            _add_summary_sheet(df_b_to_a, sheet, wb)
     else:
         fill_sheet_from_df(
             sheet=sheet,
@@ -282,12 +284,22 @@ def summarize_excel(args):
             annotation_mode=args.annotation,
         )
 
-        summary_sheet = wb.create_sheet(title="Summary")
-        for row in dataframe_to_rows(df_summary.sort_values("score (sum)", ascending=False),
-                                     index=False, header=True):
-            summary_sheet.append(row)
-        _add_table(summary_sheet, num_rows=len(df_summary),
-                   num_cols=len(df_summary.columns))
+        _add_summary_sheet(df_summary, sheet, wb)
 
     output_file = args.output.with_suffix(".xlsx")
     wb.save(output_file)
+
+
+def _add_summary_sheet(df_summary, sheet, wb):
+    ppas_in_sheet = _get_ppas_from_sheet(sheet)
+    summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
+    n_rows_added = 0
+    for i, row in enumerate(
+            dataframe_to_rows(df_summary.sort_values("score (sum)", ascending=False),
+                              index=False, header=True)):
+        if i == 0 or tuple(row[:3]) in ppas_in_sheet:
+            summary_sheet.append(row)
+            n_rows_added += 1
+    adjust_sheet_width(summary_sheet)
+    _add_table(summary_sheet, num_rows=n_rows_added,
+               num_cols=len(df_summary.columns))
