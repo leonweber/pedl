@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 
 from openpyxl.styles import Font, PatternFill
+from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl import Workbook
 import pandas as pd
@@ -85,41 +86,47 @@ def adjust_sheet_width(sheet):
 
 def _add_value_choices(sheet):
     # Incorrect
-    sheet["O1"].value = "Wrong Genes"
-    sheet["O2"].value = "Wrong PPA Type"
-    sheet["O3"].value = "No PPA"
+    sheet["P1"].value = "Wrong Genes"
+    sheet["P2"].value = "Wrong PPA Type"
+    sheet["P3"].value = "No PPA"
 
-    data_validation = DataValidation(type="list", formula1="$O$1:$O$100")
-    data_validation.add("J2:J10000")
+    data_validation = DataValidation(type="list", formula1="$P$1:$P$100")
+    data_validation.add("K2:K10000")
     sheet.add_data_validation(data_validation)
 
     # Useless
-    sheet["N1"].value = "Indirect Interaction"
-    sheet["N2"].value = "Insufficient Evidence"
-    sheet["N3"].value = "Wrong Organism"
-    sheet["N4"].value = "Wrong Disease"
-    sheet["N5"].value = "Mutation Required"
-    sheet["N6"].value = "PTM Required"
-    sheet["N7"].value = "Bound Proteins Required"
+    sheet["O1"].value = "Indirect Interaction"
+    sheet["O2"].value = "Insufficient Evidence"
+    sheet["O3"].value = "Wrong Organism"
+    sheet["O4"].value = "Wrong Disease"
+    sheet["O5"].value = "Mutation Required"
+    sheet["O6"].value = "PTM Required"
+    sheet["O7"].value = "Bound Proteins Required"
 
-    data_validation = DataValidation(type="list", formula1="$N$1:$N$100")
-    data_validation.add("K2:K10000")
+    data_validation = DataValidation(type="list", formula1="$O$1:$O$100")
+    data_validation.add("L2:L10000")
     sheet.add_data_validation(data_validation)
 
 
 def _add_table(sheet, num_rows, num_cols):
     last_col = string.ascii_uppercase[num_cols - 1]
     ref = f"A1:{last_col}{num_rows}"
-    table = Table(displayName="Table1", ref=ref)
+    i = 1
+    while True:
+        try:
+            table = Table(displayName=f"Table{i}", ref=ref)
+            table.tableStyleInfo = TableStyleInfo(
+                name="TableStyleLight1",
+                showFirstColumn=False,
+                showLastColumn=False,
+                showRowStripes=True,
+                showColumnStripes=True,
+            )
+            sheet.add_table(table)
+            break
+        except ValueError:
+            i += 1
 
-    table.tableStyleInfo = TableStyleInfo(
-        name="TableStyleLight1",
-        showFirstColumn=False,
-        showLastColumn=False,
-        showRowStripes=True,
-        showColumnStripes=True,
-    )
-    sheet.add_table(table)
 
 
 def fill_sheet_from_df(
@@ -138,11 +145,12 @@ def fill_sheet_from_df(
         "text",
         "pubmed",
         "article score",
+        "PPA score (total)",
         "MESH terms",
     ]
     if annotation_mode:
         header += ["correct", "useful", "why incorrect?", "why not useful?", "comment"]
-    for cell, value in zip(sheet["A1":"L1"][0], header):
+    for cell, value in zip(sheet["A1":"Z1"][0], header):
         cell.value = value
         cell.font = Font(bold=True)
 
@@ -197,8 +205,10 @@ def fill_sheet_from_df(
             if i == 0:
                 sheet[f"F{idx_next_free_row + 2}"].font = Font(bold=True)
 
-            if pmid in pmid_to_mesh_terms:
-                sheet[f"G{idx_next_free_row + 2}"].value = ", ".join(
+            sheet[f"G{idx_next_free_row + 2}"].value = ppa_data["row"]["score (sum)"]
+
+            if pmid_to_mesh_terms and pmid in pmid_to_mesh_terms:
+                sheet[f"H{idx_next_free_row + 2}"].value = ", ".join(
                     pmid_to_mesh_terms[pmid]
                 )
             idx_next_free_row += 1
@@ -211,7 +221,10 @@ def fill_sheet_from_df(
 
 
 def summarize_excel(args):
-    pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(args.mesh_terms))
+    if args.mesh_terms:
+        pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(args.mesh_terms))
+    else:
+        pmid_to_mesh_terms = None
 
     df_summary = build_summary_table(raw_dir=args.ppa_dir, score_cutoff=args.threshold)
 
@@ -223,7 +236,7 @@ def summarize_excel(args):
             set_a = set(f.read().split("\n"))
             df_a_to_b = df_summary[df_summary["head"].isin(set_a)]
             df_b_to_a = df_summary[df_summary["tail"].isin(set_a)]
-            sheet.title = f"{args.set_a.with_suffix('').name} -> other"
+            sheet.title = f"{args.set_a.with_suffix('').name} -> other"[:31]
             fill_sheet_from_df(
                 sheet=sheet,
                 df=df_a_to_b,
@@ -234,7 +247,14 @@ def summarize_excel(args):
                 annotation_mode=args.annotation,
             )
 
-            sheet = wb.create_sheet(title=f"other -> {args.set_a.with_suffix('').name}")
+            summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
+            for row in dataframe_to_rows(df_a_to_b.sort_values("score (sum)", ascending=False),
+                                         index=False, header=True):
+                summary_sheet.append(row)
+            _add_table(summary_sheet, num_rows=len(df_a_to_b),
+                       num_cols=len(df_a_to_b.columns))
+
+            sheet = wb.create_sheet(title=f"other -> {args.set_a.with_suffix('').name}"[:31])
             fill_sheet_from_df(
                 sheet=sheet,
                 df=df_b_to_a,
@@ -244,6 +264,13 @@ def summarize_excel(args):
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
                 annotation_mode=args.annotation,
             )
+
+            summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
+            for row in dataframe_to_rows(df_b_to_a.sort_values("score (sum)", ascending=False),
+                                         index=False, header=True):
+                summary_sheet.append(row)
+            _add_table(summary_sheet, num_rows=len(df_b_to_a),
+                       num_cols=len(df_b_to_a.columns))
     else:
         fill_sheet_from_df(
             sheet=sheet,
@@ -254,5 +281,13 @@ def summarize_excel(args):
             pmid_to_mesh_terms=pmid_to_mesh_terms,
             annotation_mode=args.annotation,
         )
+
+        summary_sheet = wb.create_sheet(title="Summary")
+        for row in dataframe_to_rows(df_summary.sort_values("score (sum)", ascending=False),
+                                     index=False, header=True):
+            summary_sheet.append(row)
+        _add_table(summary_sheet, num_rows=len(df_summary),
+                   num_cols=len(df_summary.columns))
+
     output_file = args.output.with_suffix(".xlsx")
     wb.save(output_file)

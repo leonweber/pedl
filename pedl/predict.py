@@ -7,7 +7,7 @@ from typing import Tuple, Set
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from tqdm import tqdm
 
 from pedl.data_getter import DataGetterPubtator, DataGetterAPI
@@ -111,7 +111,9 @@ def predict(args):
     else:
         pmids = None
 
-    dataset = PEDLDataset(heads=heads,
+
+
+    dataset_fwd = PEDLDataset(heads=heads,
                           tails=tails,
                           skip_pairs=processed_pairs,
                           base_model="leonweber/PEDL",
@@ -120,23 +122,35 @@ def predict(args):
                           max_bag_size=args.max_bag_size,
                           pmids=pmids)
 
+    if not args.skip_reverse:
+        dataset_rev = PEDLDataset(heads=tails,
+                              tails=heads,
+                              skip_pairs=processed_pairs,
+                              base_model="leonweber/PEDL",
+                              data_getter=data_getter,
+                              sentence_max_length=500,
+                              max_bag_size=args.max_bag_size,
+                              pmids=pmids)
+
+        dataset = ConcatDataset([dataset_fwd, dataset_rev])
+    else:
+        dataset = dataset_fwd
+
     model = BertForDistantSupervision.from_pretrained(args.model,
-                                                      tokenizer=dataset.tokenizer)
+                                                      tokenizer=dataset_fwd.tokenizer)
     if "cuda" in args.device:
         model.bert = nn.DataParallel(model.bert)
     model.eval()
     model.to(args.device)
 
-    model.config.e1_id = dataset.tokenizer.convert_tokens_to_ids("<e1>")
-    model.config.e2_id = dataset.tokenizer.convert_tokens_to_ids("<e2>")
+    model.config.e1_id = dataset_fwd.tokenizer.convert_tokens_to_ids("<e1>")
+    model.config.e2_id = dataset_fwd.tokenizer.convert_tokens_to_ids("<e2>")
 
 
     os.makedirs(args.out, exist_ok=True)
 
-    # dataloader = DataLoader(dataset, num_workers=4, batch_size=1,
-    #                         collate_fn=model.collate_fn, prefetch_factor=100)
-    dataloader = DataLoader(dataset, num_workers=0, batch_size=1,
-                            collate_fn=model.collate_fn)
+    dataloader = DataLoader(dataset, num_workers=4, batch_size=1,
+                            collate_fn=model.collate_fn, prefetch_factor=100)
     with (args.out / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader):
             head, tail = datapoint["pair"]
