@@ -15,7 +15,8 @@ from tqdm import tqdm
 from pedl.data_getter import DataGetterPubtator, DataGetterAPI
 from pedl.datasets.pedl_dataset import PEDLDataset
 from pedl.models.bert_for_distant_supervision import BertForDistantSupervision
-from pedl.utils import get_hgnc_symbol_to_gene_id, get_geneid_to_name, Entity
+from pedl.utils import get_hgnc_symbol_to_gene_id, get_geneid_to_name, Entity, maybe_mapped_entities, \
+    get_mesh_id_to_chem_name
 
 
 PREFIX_PROCESSED_PAIRS = ".pairs_processed"
@@ -27,59 +28,29 @@ def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
         with file.open() as f:
             for line in f.read().split("\n"):
                 processed_pairs.add(tuple(line.split("\t")))
-
     return processed_pairs
+
 
 @torch.no_grad()
 @hydra.main(config_path="./configs/predict", config_name="default.yaml")
 def predict(cfg: DictConfig):
-    x = cfg.data
-    hgnc_to_gene_id = get_hgnc_symbol_to_gene_id()
+    if "drug" in cfg.type1 or "drug" in cfg.type2 :
+        id_to_entity = get_mesh_id_to_chem_name()
+    else:
+        id_to_entity = get_hgnc_symbol_to_gene_id()
 
     if cfg.verbose:
         logging.basicConfig(level=logging.INFO)
 
-    #todo if str und if list anpaasen für config
-    if len(cfg.p1) == 1 and os.path.exists(cfg.p1[0]):
-        with open(cfg.p1[0]) as f:
-            p1s = f.read().strip().split("\n")
-    elif len(cfg.p1) == 1 and cfg.p1[0] == "all_human_genes":
-        p1s = sorted(hgnc_to_gene_id.keys())
-    else:
-        p1s = cfg.p1
+    e1s = get_entity_list(cfg.e1, id_to_entity)
+    e2s = get_entity_list(cfg.e2, id_to_entity)
 
-    if len(cfg.p2) == 1 and os.path.exists(cfg.p2[0]):
-        with open(cfg.p2[0]) as f:
-            p2s = f.read().strip().split("\n")
-    elif len(cfg.p2) == 1 and cfg.p2[0] == "all_human_genes":
-        p2s = sorted(hgnc_to_gene_id.keys())
-    else:
-        p2s = cfg.p2
+    maybe_mapped_e1s = maybe_mapped_entities(e1s, id_to_entity, cfg.skip_invalid)
+    maybe_mapped_e2s = maybe_mapped_entities(e2s, id_to_entity, cfg.skip_invalid)
 
-    maybe_mapped_p1s = []
-    for p1 in p1s:
-        if not p1.isnumeric():
-            if not cfg.skip_invalid:
-                assert p1 in hgnc_to_gene_id, f"{p1} is neither a valid HGNC symbol nor a Entrez gene id"
-            elif p1 not in hgnc_to_gene_id:
-                continue
-            maybe_mapped_p1s.append(hgnc_to_gene_id[p1])
-        else:
-            maybe_mapped_p1s.append(p1)
-
-    maybe_mapped_p2s = []
-    for p2 in p2s:
-        if not p2.isnumeric():
-            if not cfg.skip_invalid:
-                assert p2 in hgnc_to_gene_id, f"{p2} is neither a valid HGNC symbol nor a Entrez gene id"
-            elif p2 not in hgnc_to_gene_id:
-                continue
-            maybe_mapped_p2s.append(hgnc_to_gene_id[p2])
-        else:
-            maybe_mapped_p2s.append(p2)
-
-    heads = [Entity(cuid, "Gene") for cuid in maybe_mapped_p1s]
-    tails = [Entity(cuid, "Gene") for cuid in maybe_mapped_p2s]
+    #todo change "Gene"
+    heads = [Entity(cuid, "Gene") for cuid in maybe_mapped_e1s]
+    tails = [Entity(cuid, "Gene") for cuid in maybe_mapped_e2s]
 
     if cfg.num_workers > 1:
         heads = sorted(heads)
@@ -98,7 +69,7 @@ def predict(cfg: DictConfig):
         else:
             cfg.device = "cpu"
 
-    universe = set(maybe_mapped_p1s + maybe_mapped_p2s)
+    universe = set(maybe_mapped_e1s + maybe_mapped_e2s)
 
     if cfg.pubtator:
         data_getter = DataGetterPubtator(address=cfg.pubtator)
@@ -107,19 +78,18 @@ def predict(cfg: DictConfig):
                                     expand_species=cfg.expand_species,
                                     blind_entity_types={"Gene"}
                                     )
-
     dataset = PEDLDataset(heads=heads,
                           tails=tails,
                           skip_pairs=processed_pairs,
-                          base_model="leonweber/PEDL",
+                          base_model=cfg.model,
                           data_getter=data_getter,
                           sentence_max_length=500,
-                          max_bag_size=cfg.max_bag_size)
-
-    model = BertForDistantSupervision.from_pretrained(cfg.model,
-                                                      tokenizer=dataset.tokenizer)
+                          max_bag_size=cfg.max_bag_size,
+                          local_model=cfg.local_model)
+    #todo wenn nur prot elif wenn ...
+    model = BertForDistantSupervision.from_pretrained(cfg.model, tokenizer=dataset.tokenizer)
     if "cuda" in cfg.device:
-        model.bert = nn.DataParallel(model.bert)
+        model.transformer = nn.DataParallel(model.transformer)
     model.eval()
     model.to(cfg.device)
 
@@ -171,6 +141,15 @@ def predict(cfg: DictConfig):
                         f.write(f"{label}\t{max_score.item():.2f}\t{sentence.pmid}\t{sentence.text}\tPEDL\n\n")
             f_pairs_processed.write(f"{head}\t{tail}\n")
 
+def get_entity_list(entity, normalized_entity_ids):
+    if len(entity) == 1 and os.path.exists(entity[0]):
+        with open(entity[0]) as f:
+            p1s = f.read().strip().split("\n")
+    elif len(entity) == 1 and entity[0] == "all":
+        p1s = sorted(normalized_entity_ids.keys())
+    else:
+        p1s = entity
+    return p1s
 
 if __name__ == '__main__':
     predict()

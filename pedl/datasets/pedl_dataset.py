@@ -5,9 +5,11 @@ from collections import Counter
 from pathlib import Path
 from typing import List, Tuple, Set, Optional, Dict
 
+import hydra.utils
 import torch
 from torch.utils.data import Dataset, Sampler
-from transformers import BertTokenizerFast
+from transformers import AutoTokenizer
+from segtok.segmenter import split_single
 
 from pedl.utils import Entity
 from pedl.data_getter import DataGetterAPI
@@ -34,32 +36,51 @@ class PEDLDataset(Dataset):
         skip_pairs: List[Tuple[str, str]],
         base_model: str,
         data_getter: DataGetterAPI,
+        max_length: int,
+        pair_side_information: str = None,
+        entity_side_information: str = None,
         relations: Optional[List[Set[str]]] = None,
         max_bag_size: Optional[int] = None,
         blind_entities: bool = True,
-        sentence_max_length: Optional[int] = None
+        sentence_max_length: Optional[int] = None,
+        local_model: bool = False,
+        entity_tokens: List[str] = None
     ):
         self.heads = heads
         self.tails = tails
         self.max_bag_size = max_bag_size
-        self.tokenizer = BertTokenizerFast.from_pretrained(str(base_model))
-        self.tokenizer.add_special_tokens(
-            {
-                "additional_special_tokens": [
-                    "<e1>",
-                    "</e1>",
-                    "<e2>",
-                    "</e2>",
-                ]
-                + [f"<protein{i}/>" for i in range(1, 47)]
-            }
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(str(base_model), local_files_only=local_model)
+        if entity_tokens:
+            self.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens": entity_tokens
+                    + [f"<protein{i}/>" for i in range(1, 47)]
+                }
+            )
+        else :
+            self.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens":
+                        ['<e1>',
+                         '</e1>',
+                         '<e2>',
+                         '</e2>']
+                        + [f"<protein{i}/>" for i in range(1, 47)]
+                }
+            )
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
         self.relations = relations
         self.blind_entities = blind_entities
         self.sentence_max_length = sentence_max_length
         self.skip_pairs = skip_pairs
+        self.max_length = max_length
+        self.pair_to_side_information = {}
+        if pair_side_information:
+            self.pair_to_side_information = self.get_side_information(pair_side_information)
+        self.entity_to_side_information = {}
+        if entity_side_information:
+            self.entity_to_side_information = self.get_side_information(entity_side_information)
 
     def __len__(self):
         return len(self.heads) * len(self.tails)
@@ -97,9 +118,30 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
-        encoding = self.tokenizer.batch_encode_plus(texts, max_length=312,
-                                                    truncation=True)
+        if self.pair_to_side_information and self.entity_to_side_information:
+            encoding = []
+            pair_side_info = self.pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
 
+            head_side_info = self.entity_to_side_information.get(head.infons["identifier"], "")
+            tail_side_info = self.entity_to_side_information.get(tail.infons["identifier"], "")
+
+            if head_side_info and tail_side_info:
+                head_side_info = split_single(head_side_info)[0]
+                tail_side_info = split_single(tail_side_info)[0]
+
+            side_info = f"{pair_side_info} | {head_side_info} | {tail_side_info} [SEP]"
+            for sentence in texts:
+                features_text = self.tokenizer.encode_plus(
+                    text=sentence, max_length=self.max_length, truncation="longest_first"
+                )
+                len_remaining = self.max_length - len(features_text.input_ids)
+                features_side = self.tokenizer.encode_plus(
+                    side_info, max_length=len_remaining, truncation="longest_first", add_special_tokens=False
+                )
+                encoding.append(features_text.input_ids + features_side.input_ids)
+        else:
+            encoding = self.tokenizer.batch_encode_plus(texts, max_length=312,
+                                                        truncation=True)
         sample = {
             "encoding": encoding,
             "labels": labels,
@@ -109,3 +151,11 @@ class PEDLDataset(Dataset):
         }
 
         return sample
+
+    def get_side_information(self, file_name):
+        side_information = {}
+        with open(hydra.utils.to_absolute_path(Path("data") / "side_information" / file_name)) as f:
+            for line in f:
+                cuid, side_info = line.strip("\n").split("\t")
+                side_information[cuid] = side_info
+        return side_information

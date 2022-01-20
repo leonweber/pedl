@@ -495,6 +495,35 @@ def get_hgnc_symbol_to_gene_id():
 
     return hgnc_symbol_to_gene_id
 
+def get_mesh_id_to_chem_name():
+    mesh_id_to_chem_name = {}
+    url = "http://ctdbase.org/downloads/#allchems/CTD_chemicals.tsv.gz"
+    with gzip.open(cached_path(url, cache_dir=cache_root), 'wb', encoding="utf8") as f:
+        next(f)
+        for line in f:
+            fields = line.strip().split("\t")
+            if len(fields) > 18:
+                symbol = fields[0]
+                mesh_id = fields[1]
+                mesh_id_to_chem_name[symbol] = mesh_id
+
+    return mesh_id_to_chem_name
+
+
+
+def maybe_mapped_entities(entities, normalized_entity_ids, skip_invalid=False):
+    maybe_mapped_entities = []
+    for entity in entities:
+        if not entity.isnumeric():
+            if not skip_invalid:
+                assert entity in normalized_entity_ids, f"{entity} is neither a valid HGNC symbol nor a Entrez gene id"
+            elif entity not in normalized_entity_ids:
+                continue
+            maybe_mapped_entities.append(normalized_entity_ids[entity])
+        else:
+            maybe_mapped_entities.append(entity)
+    return maybe_mapped_entities
+
 
 def insert_pair_markers(text, head, tail, sentence_offset, mark_with_special_tokens, blind_entities):
     if mark_with_special_tokens:

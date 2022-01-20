@@ -7,12 +7,12 @@ work_dir: ${hydra:runtime.cwd}
 default:
   - proteins: ${work_dir}/config/entities/proteins.yaml
 
-p1: ???
-p2: ???
+e1: ???
+e2: ???
 type1: ???
 type2: ???
 out: "PEDL_predictions"
-model: "leonweber/PEDL"
+model: "./local_model"
 batch_size: 1
 pubtator: localhost:9200
 device: cpu
@@ -27,3 +27,4 @@ expand_species:
 multi_sentence: False
 num_workers: 1
 worker_id: 0
+local_model: True
