@@ -19,7 +19,6 @@ from pedl.utils import get_homologue_mapping, cache_root, SegtokSentenceSplitter
     replace_consistently, replace_consistently_dict
 
 
-
 class DataGetter(abc.ABC):
 
     @abc.abstractmethod
@@ -29,11 +28,18 @@ class DataGetter(abc.ABC):
 
 class DataGetterPubtator(DataGetter):
 
-    def __init__(self, address: str):
+    def __init__(self, address: str, entity_marker: dict = None, ):
         # TODO check whether elastic search is running with pubtator index
         host, port = address.split(":")
         self.types_to_blind = {"gene"}
         self.client = Elasticsearch(hosts=[host], port=port, timeout=3000)
+        if entity_marker:
+            self.et = entity_marker
+        else:
+            self.et = {"head_start": '<e1>',
+                       "head_end": '</e1>',
+                       "tail_start": '<e2>',
+                       "tail_end": '</e2>'}
 
     def get_sentences(self, head: Entity, tail: Entity):
         processed_sentences = []
@@ -61,8 +67,10 @@ class DataGetterPubtator(DataGetter):
             for idx_head, span_head in enumerate(spans_head):
                 for idx_tail, span_tail in enumerate(spans_tail):
                     span_to_replacement = {
-                        tuple(span_head): f"<e1>{text_orig[span_head[0]:span_head[1]]}</e1>",
-                        tuple(span_tail): f"<e2>{text_orig[span_tail[0]:span_tail[1]]}</e2>",
+                        tuple(span_head): self.et['head_start'] + text_orig[span_head[0]:span_head[1]]
+                        + self.et['head_end'],
+                        tuple(span_tail): self.et['tail_start'] + text_orig[span_tail[0]:span_tail[1]]
+                        + self.et['tail_end'],
                     }
                     text = replace_consistently_dict(text=text_orig, span_to_replacement=span_to_replacement)
 
@@ -70,26 +78,35 @@ class DataGetterPubtator(DataGetter):
                     span_tail_masked = spans_tail_masked[idx_tail]
 
                     span_to_replacement = {
-                        tuple(span_head_masked): f"<e1>{text_orig_masked[span_head_masked[0]:span_head_masked[1]]}</e1>",
-                        tuple(span_tail_masked): f"<e2>{text_orig_masked[span_tail_masked[0]:span_tail_masked[1]]}</e2>",
+                        tuple(
+                            span_head_masked): self.et['head_start'] + text_orig_masked[span_head_masked[0]:span_head_masked[1]] + self.et['head_end'],
+                        tuple(
+                            span_tail_masked): self.et['tail_start'] + text_orig_masked[span_tail_masked[0]:span_tail_masked[1]] + self.et['tail_end'],
                     }
-                    text_masked = replace_consistently_dict(text=text_orig_masked, span_to_replacement=span_to_replacement)
+                    text_masked = replace_consistently_dict(text=text_orig_masked,
+                                                            span_to_replacement=span_to_replacement)
 
-                    processed_sentences.append(Sentence(text=text, text_blinded=text_masked, pmid=sentence["pmid"], start_pos=0))
+                    processed_sentences.append(
+                        Sentence(text=text,
+                                 text_blinded=text_masked,
+                                 pmid=sentence["pmid"],
+                                 start_pos=0
+                                 )
+                    )
 
         return processed_sentences
 
 
 class DataGetterAPI(DataGetter):
-
     CHUNK_SIZE = 100
 
     def __init__(
-        self,
-        gene_universe: Optional[Set[str]] = None,
-        chemical_universe: Optional[Set[str]] = None,
-        expand_species: Optional[List[str]] = None,
-        blind_entity_types: Optional[Set[str]] = None,
+            self,
+            gene_universe: Optional[Set[str]] = None,
+            chemical_universe: Optional[Set[str]] = None,
+            expand_species: Optional[List[str]] = None,
+            blind_entity_types: Optional[Set[str]] = None,
+            entity_marker: dict = None
     ):
         self.gene_universe = gene_universe or set()
         self.chemical_universe = chemical_universe or set()
@@ -107,8 +124,14 @@ class DataGetterAPI(DataGetter):
             directory=str(cache_root / "document_cache"),
             eviction_policy="least-recently-used",
         )
-
-        self.sentence_splitter = SegtokSentenceSplitter()
+        if entity_marker:
+            self.entity_marker = entity_marker
+        else:
+            self.entity_marker = {"head_start": '<e1>',
+                                  "head_end": '</e1>',
+                                  "tail_start": '<e2>',
+                                  "tail_end": '</e2>'}
+        self.sentence_splitter = SegtokSentenceSplitter(self.entity_marker)
 
     def get_gene2pmid(self):
         gene2pmid = defaultdict(set)
@@ -159,7 +182,7 @@ class DataGetterAPI(DataGetter):
 
         with final_path.open() as f:
             for line in tqdm(
-                f, total=104567794, desc="Loading chemical2pubtatorcentral"
+                    f, total=104567794, desc="Loading chemical2pubtatorcentral"
             ):
                 line = line.strip()
                 fields = line.split("\t")
@@ -173,7 +196,6 @@ class DataGetterAPI(DataGetter):
                     chemical2pmid[chemical_id].add(pmid)
 
         return dict(chemical2pmid)
-
 
     def maybe_map_to_pmcid(self, pmids):
         pmid_to_pmcid = {}
@@ -212,6 +234,7 @@ class DataGetterAPI(DataGetter):
         identifiers = set(identifiers.split(";"))
 
         expanded_identifiers = identifiers.copy()
+        #todo data getter?
         if annotation.infons["type"] == "Gene":
             for cuid in identifiers:
                 expanded_identifiers.update(homologue_mapping.get(cuid, {}))
@@ -338,14 +361,14 @@ class DataGetterAPI(DataGetter):
             self.cache_documents(collection.documents)
 
     def get_sentence(
-        self,
-        passage,
-        offset_ent1,
-        offset_ent2,
-        len_ent1,
-        len_ent2,
-        pmid,
-        allow_multi_sentence=False,
+            self,
+            passage,
+            offset_ent1,
+            offset_ent2,
+            len_ent1,
+            len_ent2,
+            pmid,
+            allow_multi_sentence=False,
     ):
 
         if offset_ent1 < offset_ent2:
@@ -362,7 +385,7 @@ class DataGetterAPI(DataGetter):
                 snippet_start = sent.start_pos
 
             if (
-                sent.end_pos >= right_start >= sent.start_pos
+                    sent.end_pos >= right_start >= sent.start_pos
             ):  # is sentence after right entity
                 snippet_end = sent.end_pos
 
@@ -372,7 +395,7 @@ class DataGetterAPI(DataGetter):
             return None
 
         if not allow_multi_sentence and not any(
-            snippet_start == i.start_pos and snippet_end == i.end_pos for i in sents
+                snippet_start == i.start_pos and snippet_end == i.end_pos for i in sents
         ):
             return None  # is multi sentence
 
@@ -405,30 +428,25 @@ class DataGetterAPI(DataGetter):
         text = passage.text[snippet_start:snippet_end]
         offsets -= snippet_start
 
-        head_start_marker = "<e1>"
-        head_end_marker = "</e1>"
-        tail_start_marker = "<e2>"
-        tail_end_marker = "</e2>"
-
         text_ent1 = passage.text[offset_ent1: offset_ent1 + len_ent1]
         text, offsets = replace_consistently(
             offset=offsets[offset_idx_p1],
             length=lengths[offset_idx_p1],
-            replacement=f"{head_start_marker}{text_ent1}{head_end_marker}",
+            replacement=f"{self.entity_marker['head_start']}{text_ent1}{self.entity_marker['head_end']}",
             text=text,
             offsets=offsets,
         )
-        offsets[offset_idx_p1] += len(head_start_marker)
+        offsets[offset_idx_p1] += len(self.entity_marker['head_start'])
 
         text_ent2 = passage.text[offset_ent2: offset_ent2 + len_ent2]
         text, offsets = replace_consistently(
             offset=offsets[offset_idx_p2],
             length=lengths[offset_idx_p2],
-            replacement=f"{tail_start_marker}{text_ent2}{tail_end_marker}",
+            replacement=f"{self.entity_marker['tail_start']}{text_ent2}{self.entity_marker['tail_end']}",
             text=text,
             offsets=offsets,
         )
-        offsets[offset_idx_p2] += len(tail_start_marker)
+        offsets[offset_idx_p2] += len(self.entity_marker['tail_start'])
 
         masked_indices = set()
         blinded_text = text
@@ -446,6 +464,4 @@ class DataGetterAPI(DataGetter):
                     )
                     masked_indices.add(idx)
 
-        return Sentence(
-            pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start
-        )
+        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start)

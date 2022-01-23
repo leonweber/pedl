@@ -19,6 +19,7 @@ class BertForDistantSupervision(BertPreTrainedModel):
                  use_ends: bool = False,
                  local_model: bool = False,
                  entity_embeddings: bool = True,
+                 entity_marker: dict = None,
                  **kwargs):
         super().__init__(config, *inputs, **kwargs)
         self.num_labels = 7
@@ -31,6 +32,13 @@ class BertForDistantSupervision(BertPreTrainedModel):
         self.use_ends = use_ends
         self.entity_embeddings = entity_embeddings
         self.init_weights()
+        if entity_marker:
+            self.entity_marker = entity_marker
+        else:
+            self.entity_marker = {"head_start": '<e1>',
+                                  "head_end": '</e1>',
+                                  "tail_start": '<e2>',
+                                  "tail_end": '</e2>'}
         seq_rep_size = 0
         if use_cls:
             seq_rep_size += self.transformer.config.hidden_size
@@ -54,11 +62,11 @@ class BertForDistantSupervision(BertPreTrainedModel):
         if self.use_starts:
             head_start_idx = torch.where(
                 input_ids
-                == self.tokenizer.convert_tokens_to_ids('<e1>')
+                == self.tokenizer.convert_tokens_to_ids(self.entity_marker['head_start'])
             )
             tail_start_idx = torch.where(
                 input_ids
-                == self.tokenizer.convert_tokens_to_ids('<e2>')
+                == self.tokenizer.convert_tokens_to_ids(self.entity_marker['tail_start'])
             )
             head_start_rep = seq_emb[head_start_idx]
             tail_start_rep = seq_emb[tail_start_idx]
@@ -68,11 +76,11 @@ class BertForDistantSupervision(BertPreTrainedModel):
         if self.use_ends:
             head_end_idx = torch.where(
                 input_ids
-                == self.tokenizer.convert_tokens_to_ids('</e1>')
+                == self.tokenizer.convert_tokens_to_ids(self.entity_marker['head_end'])
             )
             tail_end_idx = torch.where(
                 input_ids
-                == self.tokenizer.convert_tokens_to_ids('</e2>')
+                == self.tokenizer.convert_tokens_to_ids(self.entity_marker['tail_end'])
             )
             head_end_rep = seq_emb[head_end_idx]
             tail_end_rep = seq_emb[tail_end_idx]

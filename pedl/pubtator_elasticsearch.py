@@ -17,8 +17,9 @@ from tqdm import tqdm
 from pedl.utils import SegtokSentenceSplitter, get_pmid, chunks, cache_root, replace_consistently
 from pedl.data_getter import DataGetterAPI
 
-
-MASK_TYPES = {"Gene": "protein"}
+#todo is that correct?
+MASK_TYPES = {"Gene": "protein",
+              "Chemical": "drug"}
 INDEX_NAME = "pubtator_masked"
 
 

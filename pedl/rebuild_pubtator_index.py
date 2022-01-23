@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from pedl import pubtator_elasticsearch
 
 
-@hydra.main(config_path="../configs/rebuild_pubtater_index", config_name="default.yaml")
+@hydra.main(config_path="../configs", config_name="rebuild_pubtater_index.yaml")
 def rebuild_pubtator_index(cfg: DictConfig):
     really_continue = input("This will delete the pubtator index and rebuild it. Do you want to continue? Type 'yes':\n")
     if really_continue != "yes":

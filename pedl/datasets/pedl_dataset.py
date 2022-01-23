@@ -33,7 +33,7 @@ class PEDLDataset(Dataset):
         self,
         heads: List[Entity],
         tails: List[Entity],
-        skip_pairs: List[Tuple[str, str]],
+        skip_pairs: Set[Tuple[str, str]],
         base_model: str,
         data_getter: DataGetterAPI,
         max_length: int,
@@ -44,30 +44,26 @@ class PEDLDataset(Dataset):
         blind_entities: bool = True,
         sentence_max_length: Optional[int] = None,
         local_model: bool = False,
-        entity_tokens: List[str] = None
+        entity_marker: dict = None,
     ):
         self.heads = heads
         self.tails = tails
         self.max_bag_size = max_bag_size
         self.tokenizer = AutoTokenizer.from_pretrained(str(base_model), local_files_only=local_model)
-        if entity_tokens:
-            self.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens": entity_tokens
-                    + [f"<protein{i}/>" for i in range(1, 47)]
-                }
-            )
-        else :
-            self.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens":
-                        ['<e1>',
-                         '</e1>',
-                         '<e2>',
-                         '</e2>']
-                        + [f"<protein{i}/>" for i in range(1, 47)]
-                }
-            )
+        if entity_marker:
+            self.entity_marker = entity_marker
+        else:
+            self.entity_marker = {"head_start": '<e1>',
+                                  "head_end": '</e1>',
+                                  "tail_start": '<e2>',
+                                  "tail_end": '</e2>'}
+        #todo question! what about protein
+        self.tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": entity_marker.values()
+                                             + [f"<protein{i}/>" for i in range(1, 47)]
+            }
+        )
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
         self.relations = relations

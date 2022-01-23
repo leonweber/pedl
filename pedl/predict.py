@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from pedl.data_getter import DataGetterPubtator, DataGetterAPI
 from pedl.datasets.pedl_dataset import PEDLDataset
-from pedl.models.bert_for_distant_supervision import BertForDistantSupervision
+from pedl.bert_for_distant_supervision import BertForDistantSupervision
 from pedl.utils import get_hgnc_symbol_to_gene_id, get_geneid_to_name, Entity, maybe_mapped_entities, \
     get_mesh_id_to_chem_name
 
@@ -32,25 +32,34 @@ def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
 
 
 @torch.no_grad()
-@hydra.main(config_path="./configs/predict", config_name="default.yaml")
+@hydra.main(config_path="./configs", config_name="predict.yaml")
 def predict(cfg: DictConfig):
     if "drug" in cfg.type1 or "drug" in cfg.type2 :
-        id_to_entity = get_mesh_id_to_chem_name()
+        if "drug" in cfg.type1:
+            head_id_to_entity = get_mesh_id_to_chem_name()
+            tail_id_to_entity = get_hgnc_symbol_to_gene_id()
+            #todo question muss das so heißen?
+            head_type = "Chemical"
+            tail_type = "Gene"
+        else:
+            head_id_to_entity = get_hgnc_symbol_to_gene_id()
+            tail_id_to_entity = get_mesh_id_to_chem_name()
+            head_type = "Gene"
+            tail_type = "Chemical"
     else:
-        id_to_entity = get_hgnc_symbol_to_gene_id()
+        head_id_to_entity= tail_id_to_entity = get_hgnc_symbol_to_gene_id()
+        head_type = tail_type = "Gene"
 
     if cfg.verbose:
         logging.basicConfig(level=logging.INFO)
 
-    e1s = get_entity_list(cfg.e1, id_to_entity)
-    e2s = get_entity_list(cfg.e2, id_to_entity)
+    e1s = get_entity_list(cfg.e1, head_id_to_entity)
+    e2s = get_entity_list(cfg.e2, tail_id_to_entity)
+    maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, cfg.skip_invalid)
+    maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, cfg.skip_invalid)
 
-    maybe_mapped_e1s = maybe_mapped_entities(e1s, id_to_entity, cfg.skip_invalid)
-    maybe_mapped_e2s = maybe_mapped_entities(e2s, id_to_entity, cfg.skip_invalid)
-
-    #todo change "Gene"
-    heads = [Entity(cuid, "Gene") for cuid in maybe_mapped_e1s]
-    tails = [Entity(cuid, "Gene") for cuid in maybe_mapped_e2s]
+    heads = [Entity(cuid, head_type) for cuid in maybe_mapped_e1s]
+    tails = [Entity(cuid, tail_type) for cuid in maybe_mapped_e2s]
 
     if cfg.num_workers > 1:
         heads = sorted(heads)
@@ -72,11 +81,14 @@ def predict(cfg: DictConfig):
     universe = set(maybe_mapped_e1s + maybe_mapped_e2s)
 
     if cfg.pubtator:
-        data_getter = DataGetterPubtator(address=cfg.pubtator)
+        data_getter = DataGetterPubtator(address=cfg.pubtator,
+                                         entity_marker=cfg.entities.entity_marker
+                                         )
     else:
         data_getter = DataGetterAPI(gene_universe=universe,
                                     expand_species=cfg.expand_species,
-                                    blind_entity_types={"Gene"}
+                                    blind_entity_types={head_type, tail_type},
+                                    entity_marker=cfg.entities.entity_marker
                                     )
     dataset = PEDLDataset(heads=heads,
                           tails=tails,
@@ -85,17 +97,17 @@ def predict(cfg: DictConfig):
                           data_getter=data_getter,
                           sentence_max_length=500,
                           max_bag_size=cfg.max_bag_size,
-                          local_model=cfg.local_model)
-    #todo wenn nur prot elif wenn ...
+                          local_model=cfg.local_model,
+                          entity_marker=cfg.entities.entity_marker,
+                          max_length=cfg.max_sequence_length
+                          )
     model = BertForDistantSupervision.from_pretrained(cfg.model, tokenizer=dataset.tokenizer)
     if "cuda" in cfg.device:
         model.transformer = nn.DataParallel(model.transformer)
     model.eval()
     model.to(cfg.device)
-
-    model.config.e1_id = dataset.tokenizer.convert_tokens_to_ids("<e1>")
-    model.config.e2_id = dataset.tokenizer.convert_tokens_to_ids("<e2>")
-
+    model.config.e1_id = dataset.tokenizer.convert_tokens_to_ids(cfg.entities.entity_marker["head_start"])
+    model.config.e2_id = dataset.tokenizer.convert_tokens_to_ids(cfg.entities.entity_marker["tail_start"])
 
     os.makedirs(cfg.out, exist_ok=True)
 
@@ -141,6 +153,7 @@ def predict(cfg: DictConfig):
                         f.write(f"{label}\t{max_score.item():.2f}\t{sentence.pmid}\t{sentence.text}\tPEDL\n\n")
             f_pairs_processed.write(f"{head}\t{tail}\n")
 
+
 def get_entity_list(entity, normalized_entity_ids):
     if len(entity) == 1 and os.path.exists(entity[0]):
         with open(entity[0]) as f:
@@ -150,6 +163,7 @@ def get_entity_list(entity, normalized_entity_ids):
     else:
         p1s = entity
     return p1s
+
 
 if __name__ == '__main__':
     predict()

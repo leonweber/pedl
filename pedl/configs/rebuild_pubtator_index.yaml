@@ -4,6 +4,10 @@
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
+default:
+  - database: default
+  - entities: default
+
 pubtator: ???
 
 n_processes: None

@@ -11,7 +11,7 @@ from pedl.utils import Entity
 from pedl.data_getter import DataGetterAPI
 
 
-@hydra.main(config_path="../configs/build_training_set", config_name="default.yaml")
+@hydra.main(config_path="../configs", config_name="build_training_set.yaml")
 def build_training_set(cfg: DictConfig):
     pair_to_relations = defaultdict(set)
     pmid_to_pairs = defaultdict(set)

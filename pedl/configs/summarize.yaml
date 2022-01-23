@@ -5,10 +5,12 @@
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
+default:
+  - database: default
+  - entities: default
+
 path_to_files: ???
 
 out: None
-
 cutoff: 0.0
-
 no_association_type: False

@@ -7,10 +7,12 @@ work_dir: ${hydra:runtime.cwd}
 default:
   - database: default
   - entities: default
+
 e1: ???
 e2: ???
 type1: ???
 type2: ???
+
 out: "PEDL_predictions"
 model: "./local_model"
 batch_size: 1
