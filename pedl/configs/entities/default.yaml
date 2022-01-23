@@ -1,0 +1,5 @@
+entity_marker:
+  head_start: '<e1>'
+  head_end: '</e1>'
+  tail_start: '<e2>'
+  tail_end: '</e2>'

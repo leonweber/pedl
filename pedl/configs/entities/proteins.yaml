@@ -1,5 +1,0 @@
-# Databases for Proteins
-
-data: "http://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt"
-sep: "\t"
-format: "txt"

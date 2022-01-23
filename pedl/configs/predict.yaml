@@ -5,8 +5,8 @@
 work_dir: ${hydra:runtime.cwd}
 
 default:
-  - proteins: ${work_dir}/config/entities/proteins.yaml
-
+  - database: default
+  - entities: default
 e1: ???
 e2: ???
 type1: ???
@@ -28,3 +28,4 @@ multi_sentence: False
 num_workers: 1
 worker_id: 0
 local_model: True
+max_sequence_length: 200
