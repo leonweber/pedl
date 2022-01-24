@@ -45,6 +45,7 @@ class PEDLDataset(Dataset):
         sentence_max_length: Optional[int] = None,
         local_model: bool = False,
         entity_marker: dict = None,
+        masking_types: dict = None,
     ):
         self.heads = heads
         self.tails = tails
@@ -57,13 +58,18 @@ class PEDLDataset(Dataset):
                                   "head_end": '</e1>',
                                   "tail_start": '<e2>',
                                   "tail_end": '</e2>'}
-        #todo question! what about protein
-        self.tokenizer.add_special_tokens(
-            {
-                "additional_special_tokens": entity_marker.values()
-                                             + [f"<protein{i}/>" for i in range(1, 47)]
-            }
-        )
+        if masking_types:
+            assert masking_types["Gene"], "By now only entity masking for proteins is implemented. Please use Gene "
+            self.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens": entity_marker.values() + [f"<protein{i}/>" for i in range(1, 47)]
+                }
+            )
+        else:
+            self.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens": entity_marker.values()
+                })
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
         self.relations = relations
@@ -114,7 +120,7 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
-        if self.pair_to_side_information and self.entity_to_side_information:
+        if self.pair_to_side_information or self.entity_to_side_information:
             encoding = []
             pair_side_info = self.pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
 
@@ -136,7 +142,7 @@ class PEDLDataset(Dataset):
                 )
                 encoding.append(features_text.input_ids + features_side.input_ids)
         else:
-            encoding = self.tokenizer.batch_encode_plus(texts, max_length=312,
+            encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
                                                         truncation=True)
         sample = {
             "encoding": encoding,

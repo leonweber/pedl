@@ -34,11 +34,10 @@ def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
 @torch.no_grad()
 @hydra.main(config_path="./configs", config_name="predict.yaml")
 def predict(cfg: DictConfig):
-    if "drug" in cfg.type1 or "drug" in cfg.type2 :
+    if "drug" in cfg.type1 or "drug" in cfg.type2:
         if "drug" in cfg.type1:
             head_id_to_entity = get_mesh_id_to_chem_name()
             tail_id_to_entity = get_hgnc_symbol_to_gene_id()
-            #todo question muss das so heißen?
             head_type = "Chemical"
             tail_type = "Gene"
         else:

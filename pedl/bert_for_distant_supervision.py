@@ -103,7 +103,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
             seq_reps.append(seq_emb)
         seq_emb = self.dropout(seq_reps)
 
-        #todo questions about logits
         logits = self.classifier(seq_emb)
         if use_max:
             alphas = torch.max(logits, dim=1)[0]
@@ -115,11 +114,11 @@ class BertForDistantSupervision(BertPreTrainedModel):
         }
 
         if use_max:
-            seq_emb = torch.max(logits, dim=0)[0]
+            bag_logits = torch.max(logits, dim=0)[0]
         else:
-            seq_emb = torch.logsumexp(logits, dim=0)
+            bag_logits = torch.logsumexp(logits, dim=0)
 
-        return seq_emb, meta
+        return bag_logits, meta
 
     def collate_fn(self, batch):
         if "sentences" not in batch[0]:

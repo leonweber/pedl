@@ -1,0 +1,5 @@
+# masking is for now only for proteins implemented
+
+mask_types:
+  Gene: 'protein'
+  Chemical: 'chemical'

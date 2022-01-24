@@ -7,6 +7,7 @@ work_dir: ${hydra:runtime.cwd}
 default:
   - database: default
   - entities: default
+  - masking: default
 
 e1: ???
 e2: ???
@@ -16,7 +17,8 @@ type2: ???
 out: "PEDL_predictions"
 model: "./local_model"
 batch_size: 1
-pubtator: localhost:9200
+pubtator: localhost:4243
+#localhost:9200
 device: cpu
 topk: None
 cutoff: 0.01
@@ -30,4 +32,4 @@ multi_sentence: False
 num_workers: 1
 worker_id: 0
 local_model: True
-max_sequence_length: 200
+max_sequence_length: 512

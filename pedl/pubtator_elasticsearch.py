@@ -17,13 +17,12 @@ from tqdm import tqdm
 from pedl.utils import SegtokSentenceSplitter, get_pmid, chunks, cache_root, replace_consistently
 from pedl.data_getter import DataGetterAPI
 
-#todo is that correct?
-MASK_TYPES = {"Gene": "protein",
-              "Chemical": "drug"}
+#MASK_TYPES = {"Gene": "protein",
+#              "Chemical": "chemical"}
 INDEX_NAME = "pubtator_masked"
 
 
-def _add_masked_entities(elastic_doc) -> None:
+def _add_masked_entities(elastic_doc, mask_types=None) -> None:
     elastic_doc["entities_masked"] = {}
     entities = list(elastic_doc["entities"])
 
@@ -44,8 +43,8 @@ def _add_masked_entities(elastic_doc) -> None:
     offsets_new = np.array(offsets)
     for entity in entities:
         entity_type = entity.split("|")[1]
-        if entity_type in MASK_TYPES:
-            replacement = "<" + MASK_TYPES[entity_type] + str(idx_mask) + "/>"
+        if entity_type in mask_types:
+            replacement = "<" + mask_types[entity_type] + str(idx_mask) + "/>"
             for offset_idx in entity_to_offset_idx[entity]:
                 text, offsets_new = replace_consistently(offset=offsets_new[offset_idx],
                                      length=lengths_orig[offset_idx],
@@ -66,7 +65,7 @@ def _add_masked_entities(elastic_doc) -> None:
         elastic_doc["entities_masked"][entity] = spans_new
 
 
-def _process_pubtator_files(files: List[Path], q: mp.Queue):
+def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None):
     sentence_splitter = SegtokSentenceSplitter()
     for file in files:
         actions = []
@@ -127,7 +126,7 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
                             else:
                                 entity = entities_passage.pop()
 
-                        _add_masked_entities(elastic_doc)
+                        _add_masked_entities(elastic_doc, mask_types)
 
                         action = {
                             "_index": INDEX_NAME,
@@ -138,7 +137,7 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
         q.put(actions)
 
 
-def build_index(pubtator_path, n_processes):
+def build_index(pubtator_path, n_processes, masked_types=None):
 
     n_processes = n_processes or mp.cpu_count()
     client = Elasticsearch(timeout=3000)
@@ -170,7 +169,7 @@ def build_index(pubtator_path, n_processes):
     processes = []
     for file_chunk in chunks(files, len(files) // n_processes - 1):
         p = ctx.Process(
-            target=_process_pubtator_files, args=(file_chunk, q)
+            target=_process_pubtator_files, args=(file_chunk, q, masked_types)
         )
         p.start()
         processes.append(p)

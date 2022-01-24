@@ -234,7 +234,6 @@ class DataGetterAPI(DataGetter):
         identifiers = set(identifiers.split(";"))
 
         expanded_identifiers = identifiers.copy()
-        #todo data getter?
         if annotation.infons["type"] == "Gene":
             for cuid in identifiers:
                 expanded_identifiers.update(homologue_mapping.get(cuid, {}))
