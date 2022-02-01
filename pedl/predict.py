@@ -46,7 +46,7 @@ def predict(cfg: DictConfig):
             head_type = "Gene"
             tail_type = "Chemical"
     else:
-        head_id_to_entity= tail_id_to_entity = get_hgnc_symbol_to_gene_id()
+        head_id_to_entity = tail_id_to_entity = get_hgnc_symbol_to_gene_id()
         head_type = tail_type = "Gene"
 
     if cfg.verbose:
@@ -100,7 +100,12 @@ def predict(cfg: DictConfig):
                           entity_marker=cfg.entities.entity_marker,
                           max_length=cfg.max_sequence_length
                           )
-    model = BertForDistantSupervision.from_pretrained(cfg.model, tokenizer=dataset.tokenizer)
+    model = BertForDistantSupervision.from_pretrained(cfg.model,
+                                                      tokenizer=dataset.tokenizer,
+                                                      local_files_only=cfg.local_model,
+                                                      use_cls=cfg.use_cls,
+                                                      use_starts=cfg.use_starts,
+                                                      use_ends= cfg.use_ends)
     if "cuda" in cfg.device:
         model.transformer = nn.DataParallel(model.transformer)
     model.eval()
@@ -154,6 +159,8 @@ def predict(cfg: DictConfig):
 
 
 def get_entity_list(entity, normalized_entity_ids):
+    if isinstance(entity, str):
+        entity = entity.split()
     if len(entity) == 1 and os.path.exists(entity[0]):
         with open(entity[0]) as f:
             p1s = f.read().strip().split("\n")

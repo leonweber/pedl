@@ -12,7 +12,9 @@ def rebuild_pubtator_index(cfg: DictConfig):
     if really_continue != "yes":
         sys.exit(0)
     pubtator_elasticsearch.build_index(pubtator_path=cfg.pubtator,
-                                       n_processes=cfg.n_processes, masked_types=cfg.masking.masked_types)
+                                       n_processes=cfg.n_processes,
+                                       masked_types=cfg.masking.masked_types,
+                                       entity_marker=cfg.entities.entity_marker)
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
-default:
+defaults:
   - database: default
   - entities: default
   - masking: default
@@ -15,7 +15,7 @@ type1: ???
 type2: ???
 
 out: "PEDL_predictions"
-model: "./local_model"
+model: "leonweber/PEDL"
 batch_size: 1
 pubtator: localhost:4243
 #localhost:9200
@@ -31,5 +31,8 @@ expand_species:
 multi_sentence: False
 num_workers: 1
 worker_id: 0
-local_model: True
+local_model: False
 max_sequence_length: 512
+use_cls: False
+use_starts: False
+use_ends: False

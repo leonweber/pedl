@@ -1,7 +1,5 @@
-import json
 import logging
 import random
-from collections import Counter
 from pathlib import Path
 from typing import List, Tuple, Set, Optional, Dict
 
@@ -62,13 +60,13 @@ class PEDLDataset(Dataset):
             assert masking_types["Gene"], "By now only entity masking for proteins is implemented. Please use Gene "
             self.tokenizer.add_special_tokens(
                 {
-                    "additional_special_tokens": entity_marker.values() + [f"<protein{i}/>" for i in range(1, 47)]
+                    "additional_special_tokens": list(entity_marker.values()) + [f"<protein{i}/>" for i in range(1, 47)]
                 }
             )
         else:
             self.tokenizer.add_special_tokens(
                 {
-                    "additional_special_tokens": entity_marker.values()
+                    "additional_special_tokens": list(entity_marker.values())
                 })
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
@@ -78,6 +76,7 @@ class PEDLDataset(Dataset):
         self.skip_pairs = skip_pairs
         self.max_length = max_length
         self.pair_to_side_information = {}
+
         if pair_side_information:
             self.pair_to_side_information = self.get_side_information(pair_side_information)
         self.entity_to_side_information = {}

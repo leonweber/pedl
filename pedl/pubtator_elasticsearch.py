@@ -1,8 +1,4 @@
-import json
-import os
-import random
 import sys
-import uuid
 from collections import defaultdict
 from operator import itemgetter
 from pathlib import Path
@@ -17,8 +13,6 @@ from tqdm import tqdm
 from pedl.utils import SegtokSentenceSplitter, get_pmid, chunks, cache_root, replace_consistently
 from pedl.data_getter import DataGetterAPI
 
-#MASK_TYPES = {"Gene": "protein",
-#              "Chemical": "chemical"}
 INDEX_NAME = "pubtator_masked"
 
 
@@ -65,8 +59,8 @@ def _add_masked_entities(elastic_doc, mask_types=None) -> None:
         elastic_doc["entities_masked"][entity] = spans_new
 
 
-def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None):
-    sentence_splitter = SegtokSentenceSplitter()
+def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, entity_marker: dict = None):
+    sentence_splitter = SegtokSentenceSplitter(entity_marker=entity_marker)
     for file in files:
         actions = []
         with file.open() as f:
@@ -137,7 +131,7 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None):
         q.put(actions)
 
 
-def build_index(pubtator_path, n_processes, masked_types=None):
+def build_index(pubtator_path, n_processes, masked_types=None, entity_marker: dict = None):
 
     n_processes = n_processes or mp.cpu_count()
     client = Elasticsearch(timeout=3000)
@@ -169,7 +163,7 @@ def build_index(pubtator_path, n_processes, masked_types=None):
     processes = []
     for file_chunk in chunks(files, len(files) // n_processes - 1):
         p = ctx.Process(
-            target=_process_pubtator_files, args=(file_chunk, q, masked_types)
+            target=_process_pubtator_files, args=(file_chunk, q, masked_types, entity_marker)
         )
         p.start()
         processes.append(p)

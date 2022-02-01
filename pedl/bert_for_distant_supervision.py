@@ -2,9 +2,8 @@ from collections import defaultdict
 
 from torch import nn
 import torch
-from transformers import BertPreTrainedModel, AutoModel, BertTokenizerFast, \
+from transformers import BertPreTrainedModel, AutoModel, BertModel, \
     DataCollatorWithPadding
-import numpy as np
 
 from pedl.utils import chunks
 
@@ -24,7 +23,8 @@ class BertForDistantSupervision(BertPreTrainedModel):
         super().__init__(config, *inputs, **kwargs)
         self.num_labels = 7
 
-        self.transformer = AutoModel.from_pretrained(config, local_model=local_model)
+        #self.transformer = AutoModel.from_pretrained(config, local_model=local_model)
+        self.transformer = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.tokenizer = tokenizer
         self.use_cls = use_cls

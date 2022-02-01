@@ -1,9 +1,7 @@
 import abc
 import logging
-import sys
 import warnings
 from collections import defaultdict
-from pathlib import Path
 from typing import Optional, Set, List, Dict
 
 import bioc
@@ -90,7 +88,8 @@ class DataGetterPubtator(DataGetter):
                         Sentence(text=text,
                                  text_blinded=text_masked,
                                  pmid=sentence["pmid"],
-                                 start_pos=0
+                                 start_pos=0,
+                                 entity_marker=self.et
                                  )
                     )
 
@@ -463,4 +462,4 @@ class DataGetterAPI(DataGetter):
                     )
                     masked_indices.add(idx)
 
-        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start)
+        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start, entity_marker=self.entity_marker)

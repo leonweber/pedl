@@ -5,8 +5,6 @@ import re
 import shutil
 import tempfile
 import logging
-import hydra
-from omegaconf import DictConfig
 from collections import defaultdict
 from dataclasses import dataclass
 from operator import itemgetter
@@ -31,24 +29,22 @@ if not cache_root.exists():
 
 root = Path(__file__).parent
 
-
-@hydra.main(config_path="./configs/entities", config_name="default.yaml")
 class Sentence:
     def __init__(
         self,
-        cfg: DictConfig,
         text: str,
         start_pos: int,
         pmid: Optional[str] = None,
-        text_blinded: Optional[str] = None
+        text_blinded: Optional[str] = None,
+        entity_marker: dict = None,
     ):
         self.text = text
         self.pmid = pmid
         self.start_pos = start_pos
         self.end_pos = start_pos + len(text)
         self.text_blinded = text_blinded
-        if cfg.entity_marker:
-            self.em = cfg.entity_marker
+        if entity_marker:
+            self.em = entity_marker
         else:
             self.em = {"head_start": '<e1>',
                        "head_end": '</e1>',
@@ -71,6 +67,14 @@ class Sentence:
 
 
 class SegtokSentenceSplitter:
+    def __init__(self, entity_marker: dict = None):
+        if entity_marker:
+            self.entity_marker = entity_marker
+        else:
+            self.entity_marker = {"head_start": '<e1>',
+                                  "head_end": '</e1>',
+                                  "tail_start": '<e2>',
+                                  "tail_end": '</e2>'}
     """
     For further details see: https://github.com/fnl/segtok
     """
@@ -92,7 +96,8 @@ class SegtokSentenceSplitter:
             sentences += [
                 Sentence(
                     text=sentence,
-                    start_pos=sentence_offset
+                    start_pos=sentence_offset,
+                    entity_marker=self.entity_marker
                 )
             ]
 
