@@ -12,7 +12,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from pedl.utils import Entity
-from pedl.data_getter import DataGetterPubtator
+from pedl.data_getter import DataGetterPubtator, DataGetterAPI
 
 
 @hydra.main(config_path="./configs", config_name="build_training_set.yaml")
@@ -45,10 +45,9 @@ def build_training_set(cfg: DictConfig):
                 else:
                     raise ValueError(tail.type)
 
-    data_getter = DataGetterPubtator(address=cfg.pubtator,
-                                     entity_marker=cfg.entities.entity_marker)
-
     if cfg.chemprot:
+        data_getter = DataGetterPubtator(address=cfg.pubtator,
+                                         entity_marker=cfg.entities.entity_marker)
         for pair, relations in tqdm(list(pair_to_relations.items()),
                                     desc="Preparing Crawl"):
             head, tail = pair[:2]
@@ -61,6 +60,11 @@ def build_training_set(cfg: DictConfig):
                         [head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text_blinded,
                          sentence.pmid]) + "\n")
     else:
+        data_getter = DataGetterAPI(chemical_universe=chemical_universe,
+                                    gene_universe=gene_universe,
+                                    expand_species=cfg.expand_species,
+                                    entity_marker=cfg.entities.entity_marker)
+
         all_pmids = set()
 
         for pair, relations in tqdm(list(pair_to_relations.items()),
