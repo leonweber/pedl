@@ -1,3 +1,7 @@
+import sys
+
+sys.path.append("/glusterfs/dfs-gfs-dist/barthfab/pedl")
+
 #!/usr/bin/env python
 
 import hydra
@@ -8,10 +12,10 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from pedl.utils import Entity
-from pedl.data_getter import DataGetterAPI
+from pedl.data_getter import DataGetterPubtator
 
 
-@hydra.main(config_path="../configs", config_name="build_training_set.yaml")
+@hydra.main(config_path="./configs", config_name="build_training_set.yaml")
 def build_training_set(cfg: DictConfig):
     pair_to_relations = defaultdict(set)
     pmid_to_pairs = defaultdict(set)
@@ -19,7 +23,7 @@ def build_training_set(cfg: DictConfig):
     gene_universe = set()
     chemical_universe = set()
 
-    with cfg.triples.open() as f:
+    with open(cfg.triples) as f:
         for line in f:
             fields = line.strip().split("\t")
             if fields:
@@ -41,37 +45,49 @@ def build_training_set(cfg: DictConfig):
                 else:
                     raise ValueError(tail.type)
 
-    data_getter = DataGetterAPI(chemical_universe=chemical_universe,
-                                gene_universe=gene_universe,
-                                expand_species=cfg.expand_species)
+    data_getter = DataGetterPubtator(address=cfg.pubtator,
+                                     entity_marker=cfg.entities.entity_marker)
 
-    all_pmids = set()
+    if cfg.chemprot:
+        for pair, relations in tqdm(list(pair_to_relations.items()),
+                                    desc="Preparing Crawl"):
+            head, tail = pair[:2]
+            sentences = data_getter.get_sentences(head, tail)
+            with open(str(cfg.out) + ".tsv", "w") as f, open(str(cfg.out_blinded) + ".tsv", "w") as f_blinded:
+                for sentence in sentences:
+                    f.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text,
+                                       sentence.pmid]) + "\n")
+                    f_blinded.write("\t".join(
+                        [head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text_blinded,
+                         sentence.pmid]) + "\n")
+    else:
+        all_pmids = set()
 
-    for pair, relations in tqdm(list(pair_to_relations.items()),
-                                desc="Preparing Crawl"):
-        head, tail = pair[:2]
-        shared_pmids = data_getter.get_pmids(head) & data_getter.get_pmids(tail)
+        for pair, relations in tqdm(list(pair_to_relations.items()),
+                                    desc="Preparing Crawl"):
+            head, tail = pair[:2]
+            shared_pmids = data_getter.get_pmids(head) & data_getter.get_pmids(tail)
 
-        all_pmids.update(shared_pmids)
-        for pmid in shared_pmids:
-            pmid_to_pairs[pmid].add((head, tail))
+            all_pmids.update(shared_pmids)
+            for pmid in shared_pmids:
+                pmid_to_pairs[pmid].add((head, tail))
 
-    with open(str(cfg.out) + "." + str(cfg.worker_id), "w") as f, open(str(cfg.out_blinded) + "." + str(cfg.worker_id), "w") as f_blinded:
-        for i, pmid in enumerate(tqdm(sorted(pmid_to_pairs), desc="Crawling")):
-            if not (i % cfg.n_worker) == cfg.worker_id:
-                continue
-            pairs = pmid_to_pairs[pmid]
-            docs = list(data_getter.get_documents([pmid]))[0]
-            if docs:
-                doc = docs[0]
-                for head, tail in pairs:
-                    sentences = data_getter.get_sentences_from_document(entity1=head,
-                                                                        entity2=tail,
-                                                                        document=doc)
-                    relations = pair_to_relations[(head, tail)]
-                    for sentence in sentences:
-                        f.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text, sentence.pmid]) + "\n")
-                        f_blinded.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text_blinded, sentence.pmid]) + "\n")
+        with open(str(cfg.out) + "." + str(cfg.worker_id), "w") as f, open(str(cfg.out_blinded) + "." + str(cfg.worker_id), "w") as f_blinded:
+            for i, pmid in enumerate(tqdm(sorted(pmid_to_pairs), desc="Crawling")):
+                if not (i % cfg.n_worker) == cfg.worker_id:
+                    continue
+                pairs = pmid_to_pairs[pmid]
+                docs = list(data_getter.get_documents([pmid]))[0]
+                if docs:
+                    doc = docs[0]
+                    for head, tail in pairs:
+                        sentences = data_getter.get_sentences_from_document(entity1=head,
+                                                                            entity2=tail,
+                                                                            document=doc)
+                        relations = pair_to_relations[(head, tail)]
+                        for sentence in sentences:
+                            f.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text, sentence.pmid]) + "\n")
+                            f_blinded.write("\t".join([head.type, head.cuid, tail.type, tail.cuid, ",".join(relations), sentence.text_blinded, sentence.pmid]) + "\n")
 
 
 if __name__ == '__main__':

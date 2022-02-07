@@ -4,16 +4,17 @@
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
-default:
+defaults:
   - database: default
   - entities: default
   - masking: default
 
-out: ???
-out_blinded: ???
-expand_species: ???
+out: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions/out"
+out_blinded: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions/out_blinded"
+expand_species: null
 triples: ???
+pubtator: localhost:4243
+chemprot: true
 
 n_worker: 1
 worker_id: 0
-pubtator: False
