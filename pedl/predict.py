@@ -153,6 +153,7 @@ def predict(args):
                             collate_fn=model.collate_fn, prefetch_factor=100)
     with (args.out / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader):
+            breakpoint()
             head, tail = datapoint["pair"]
             if "sentences" not in datapoint:
                 f_pairs_processed.write(f"{head}\t{tail}\n")

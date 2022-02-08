@@ -23,11 +23,9 @@ def summarize(args):
         file_out = (args.path_to_files.parent / args.path_to_files.name).with_suffix(".tsv")
     else:
         file_out = args.out
-    with open(file_out, "w") as f:
-        f.write(f"p1\tassociation type\tp2\tscore (sum)\tscore (max)\tpmids\n")
-        for row in build_summary_table(args.path_to_files, score_cutoff=args.cutoff,
-                                       no_association_type=args.no_association_type):
-            f.write(f"{row[0]}\t{row[1]}\t{row[2]}\t{row[3]:.2f}\t{row[4]:.2f}{row[5]}\n")
+    df = build_summary_table(args.path_to_files, score_cutoff=args.cutoff,
+                                       no_association_type=args.no_association_type)
+    df.to_csv(file_out, sep="\t", index=None)
 
 
 def build_training_set(args):
