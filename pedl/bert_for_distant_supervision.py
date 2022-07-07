@@ -23,7 +23,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
         super().__init__(config, *inputs, **kwargs)
         self.num_labels = 7
 
-        #self.transformer = AutoModel.from_pretrained(config, local_model=local_model)
         self.transformer = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.tokenizer = tokenizer
@@ -87,8 +86,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
             end_pair_rep = torch.cat([head_end_rep, tail_end_rep], dim=1)
             seq_reps.append(end_pair_rep)
 
-        seq_reps = torch.cat(seq_reps, dim=1)
-
         # ist das entity_embedings
         if self.entity_embeddings:
             e1_mask = (input_ids == self.config.e1_id).long()
@@ -101,6 +98,9 @@ class BertForDistantSupervision(BertPreTrainedModel):
             e2_embs = seq_emb[torch.arange(len(e2_idx)), e2_idx]
             seq_emb = torch.cat([e1_embs, e2_embs], dim=1)
             seq_reps.append(seq_emb)
+
+
+        seq_reps = torch.cat(seq_reps, dim=1)
         seq_emb = self.dropout(seq_reps)
 
         logits = self.classifier(seq_emb)

@@ -1,4 +1,5 @@
 default:
+  - _self_
   - database: default
   - entities: default
   - masking: default

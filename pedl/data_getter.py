@@ -216,9 +216,7 @@ class DataGetterAPI(DataGetter):
 
         return pmid_to_pmcid
 
-    @staticmethod
-    def get_entities_from_annotation(annotation: bioc.BioCAnnotation,
-                                     homologue_mapping: Dict) -> Set[Entity]:
+    def get_entities_from_annotation(self, annotation: bioc.BioCAnnotation,) -> Set[Entity]:
         """
         Extract entities from `annotation` and expand them with homologues from
         `self.expand_species` if it is a Gene.
@@ -235,7 +233,7 @@ class DataGetterAPI(DataGetter):
         expanded_identifiers = identifiers.copy()
         if annotation.infons["type"] == "Gene":
             for cuid in identifiers:
-                expanded_identifiers.update(homologue_mapping.get(cuid, {}))
+                expanded_identifiers.update(self.homologue_mapping.get(cuid, {}))
 
         return set(Entity(cuid=cuid, type=annotation.infons["type"]) for cuid in expanded_identifiers)
 

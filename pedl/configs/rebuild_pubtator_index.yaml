@@ -5,6 +5,7 @@
 work_dir: ${hydra:runtime.cwd}
 
 default:
+  - _self_
   - database: default
   - entities: default
   - masking: default

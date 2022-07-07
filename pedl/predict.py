@@ -105,7 +105,8 @@ def predict(cfg: DictConfig):
                                                       local_files_only=cfg.local_model,
                                                       use_cls=cfg.use_cls,
                                                       use_starts=cfg.use_starts,
-                                                      use_ends= cfg.use_ends)
+                                                      use_ends=cfg.use_ends,
+                                                      entity_embeddings=cfg.entity_embeddings)
     if "cuda" in cfg.device:
         model.transformer = nn.DataParallel(model.transformer)
     model.eval()

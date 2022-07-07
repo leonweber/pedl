@@ -5,6 +5,7 @@
 work_dir: ${hydra:runtime.cwd}
 
 defaults:
+  - _self_
   - database: default
   - entities: default
   - masking: default
@@ -15,12 +16,12 @@ type1: ???
 type2: ???
 
 out: "PEDL_predictions"
-model: "leonweber/PEDL"
+model: "barthfab/drugprot"
 batch_size: 1
-pubtator: localhost:4243
-#localhost:9200
+pubtator: #localhost:9200
+#localhost:4243
 device: cpu
-topk: None
+topk: False
 cutoff: 0.01
 max_bag_size: 1000
 api_fallback: False
@@ -36,3 +37,4 @@ max_sequence_length: 512
 use_cls: False
 use_starts: False
 use_ends: False
+entity_embeddings: True
