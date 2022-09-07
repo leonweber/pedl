@@ -16,9 +16,10 @@ type1: ???
 type2: ???
 
 out: "PEDL_predictions"
-model: "barthfab/drugprot"
+drug_model: "barthfab/drugprot"
+prot_model: "leonweber/PEDL"
 batch_size: 1
-pubtator: #localhost:9200
+pubtator: localhost:9200
 #localhost:4243
 device: cpu
 topk: False

@@ -35,6 +35,7 @@ def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
 @hydra.main(config_path="./configs", config_name="predict.yaml")
 def predict(cfg: DictConfig):
     if "drug" in cfg.type1 or "drug" in cfg.type2:
+        model_name = cfg.drug_model
         if "drug" in cfg.type1:
             head_id_to_entity = get_mesh_id_to_chem_name()
             tail_id_to_entity = get_hgnc_symbol_to_gene_id()
@@ -46,6 +47,7 @@ def predict(cfg: DictConfig):
             head_type = "Gene"
             tail_type = "Chemical"
     else:
+        model_name = cfg.prot_model
         head_id_to_entity = tail_id_to_entity = get_hgnc_symbol_to_gene_id()
         head_type = tail_type = "Gene"
 
@@ -68,7 +70,7 @@ def predict(cfg: DictConfig):
 
     geneid_to_name = get_geneid_to_name()
     if len(heads) * len(tails) > 100 and not cfg.pubtator:
-        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(pairs_to_query)} pairs. Aborting.")
+        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(e1s)} pairs. Aborting.")
         sys.exit(1)
 
     if not cfg.device:
@@ -81,7 +83,7 @@ def predict(cfg: DictConfig):
 
     if cfg.pubtator:
         data_getter = DataGetterPubtator(address=cfg.pubtator,
-                                         entity_marker=cfg.entities.entity_marker
+                                         entity_marker=cfg.entities.entity_marker.values()
                                          )
     else:
         data_getter = DataGetterAPI(gene_universe=universe,
@@ -92,17 +94,16 @@ def predict(cfg: DictConfig):
     dataset = PEDLDataset(heads=heads,
                           tails=tails,
                           skip_pairs=processed_pairs,
-                          base_model=cfg.model,
+                          base_model=model_name,
                           data_getter=data_getter,
                           sentence_max_length=500,
                           max_bag_size=cfg.max_bag_size,
-                          local_model=cfg.local_model,
                           entity_marker=cfg.entities.entity_marker,
                           max_length=cfg.max_sequence_length
                           )
-    model = BertForDistantSupervision.from_pretrained(cfg.model,
+    model = BertForDistantSupervision.from_pretrained(model_name,
                                                       tokenizer=dataset.tokenizer,
-                                                      local_files_only=cfg.local_model,
+                                                      local_model=cfg.local_model,
                                                       use_cls=cfg.use_cls,
                                                       use_starts=cfg.use_starts,
                                                       use_ends=cfg.use_ends,
@@ -116,7 +117,7 @@ def predict(cfg: DictConfig):
 
     os.makedirs(cfg.out, exist_ok=True)
 
-    dataloader = DataLoader(dataset, num_workers=4, batch_size=1,
+    dataloader = DataLoader(dataset, num_workers=cfg.num_workers, batch_size=cfg.batch_size,
                             collate_fn=model.collate_fn, prefetch_factor=100)
     with (Path(cfg.out) / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader):

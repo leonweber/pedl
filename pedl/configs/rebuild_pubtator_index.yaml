@@ -4,12 +4,12 @@
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
-default:
+defaults:
   - _self_
   - database: default
   - entities: default
   - masking: default
 
-pubtator: ???
-
-n_processes: None
+pubtator: localhost:9200
+#pubtator=https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/
+n_processes: False

@@ -514,16 +514,14 @@ def get_hgnc_symbol_to_gene_id():
 
 def get_mesh_id_to_chem_name():
     mesh_id_to_chem_name = {}
-    url = "http://ctdbase.org/downloads/#allchems/CTD_chemicals.tsv.gz"
-    with gzip.open(cached_path(url, cache_dir=cache_root), 'wb', encoding="utf8") as f:
-        next(f)
+    url = "http://ctdbase.org/reports/CTD_chemicals.tsv.gz"
+    with gzip.open(cached_path(url, cache_dir=cache_root)) as f:
         for line in f:
-            fields = line.strip().split("\t")
-            if len(fields) > 18:
+            fields = line.decode().strip().split("\t")
+            if len(fields) > 5:
                 symbol = fields[0]
                 mesh_id = fields[1]
                 mesh_id_to_chem_name[symbol] = mesh_id
-
     return mesh_id_to_chem_name
 
 

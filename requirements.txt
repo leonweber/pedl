@@ -21,3 +21,4 @@ future~=0.18.2
 docutils~=0.17.1
 hydra~=2.5
 typing_extensions~=4.2.0
+pytorch_lightning~=1.6.4

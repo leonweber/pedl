@@ -30,7 +30,7 @@ class DataGetterPubtator(DataGetter):
         # TODO check whether elastic search is running with pubtator index
         host, port = address.split(":")
         self.types_to_blind = {"gene"}
-        self.client = Elasticsearch(hosts=[host], port=port, timeout=3000)
+        self.client = Elasticsearch(hosts=[{"host": host, "port": port}], timeout=3000)
         if entity_marker:
             self.et = entity_marker
         else:
@@ -193,7 +193,6 @@ class DataGetterAPI(DataGetter):
 
                 if chemical_id in self.chemical_universe:
                     chemical2pmid[chemical_id].add(pmid)
-
         return dict(chemical2pmid)
 
     def maybe_map_to_pmcid(self, pmids):

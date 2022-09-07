@@ -41,14 +41,13 @@ class PEDLDataset(Dataset):
         max_bag_size: Optional[int] = None,
         blind_entities: bool = True,
         sentence_max_length: Optional[int] = None,
-        local_model: bool = False,
         entity_marker: dict = None,
         masking_types: dict = None,
     ):
         self.heads = heads
         self.tails = tails
         self.max_bag_size = max_bag_size
-        self.tokenizer = AutoTokenizer.from_pretrained(str(base_model), local_files_only=local_model)
+        self.tokenizer = AutoTokenizer.from_pretrained(str(base_model))
         if entity_marker:
             self.entity_marker = entity_marker
         else:
@@ -75,13 +74,14 @@ class PEDLDataset(Dataset):
         self.sentence_max_length = sentence_max_length
         self.skip_pairs = skip_pairs
         self.max_length = max_length
+        '''
         self.pair_to_side_information = {}
-
         if pair_side_information:
             self.pair_to_side_information = self.get_side_information(pair_side_information)
         self.entity_to_side_information = {}
         if entity_side_information:
             self.entity_to_side_information = self.get_side_information(entity_side_information)
+        '''
 
     def __len__(self):
         return len(self.heads) * len(self.tails)
@@ -119,6 +119,7 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
+        '''
         if self.pair_to_side_information or self.entity_to_side_information:
             encoding = []
             pair_side_info = self.pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
@@ -141,7 +142,8 @@ class PEDLDataset(Dataset):
                 )
                 encoding.append(features_text.input_ids + features_side.input_ids)
         else:
-            encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
+        '''
+        encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
                                                         truncation=True)
         sample = {
             "encoding": encoding,

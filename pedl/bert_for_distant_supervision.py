@@ -16,14 +16,13 @@ class BertForDistantSupervision(BertPreTrainedModel):
                  use_cls: bool = False,
                  use_starts: bool = False,
                  use_ends: bool = False,
-                 local_model: bool = False,
                  entity_embeddings: bool = True,
                  entity_marker: dict = None,
                  **kwargs):
         super().__init__(config, *inputs, **kwargs)
         self.num_labels = 7
 
-        self.transformer = BertModel(config)
+        self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.tokenizer = tokenizer
         self.use_cls = use_cls
@@ -40,20 +39,20 @@ class BertForDistantSupervision(BertPreTrainedModel):
                                   "tail_end": '</e2>'}
         seq_rep_size = 0
         if use_cls:
-            seq_rep_size += self.transformer.config.hidden_size
+            seq_rep_size += self.bert.config.hidden_size
         if use_starts:
-            seq_rep_size += 2 * self.transformer.config.hidden_size
+            seq_rep_size += 2 * self.bert.config.hidden_size
         if use_ends:
-            seq_rep_size += 2 * self.transformer.config.hidden_size
+            seq_rep_size += 2 * self.bert.config.hidden_size
         if entity_embeddings:
-            seq_rep_size += 2 * self.transformer.config.hidden_size
+            seq_rep_size += 2 * self.bert.config.hidden_size
         else:
             self.entity_embeddings = None
             self.entity_to_embedding_index = None
         self.classifier = nn.Linear(seq_rep_size, self.num_labels)
 
     def forward(self, input_ids, attention_mask, use_max=False, **kwargs):
-        bert_out = self.transformer(input_ids, attention_mask=attention_mask)
+        bert_out = self.bert(input_ids, attention_mask=attention_mask)
         seq_emb = bert_out.last_hidden_state
         seq_reps = []
         if self.use_cls:
