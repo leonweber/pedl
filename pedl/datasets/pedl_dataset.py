@@ -74,14 +74,12 @@ class PEDLDataset(Dataset):
         self.sentence_max_length = sentence_max_length
         self.skip_pairs = skip_pairs
         self.max_length = max_length
-        '''
         self.pair_to_side_information = {}
         if pair_side_information:
             self.pair_to_side_information = self.get_side_information(pair_side_information)
         self.entity_to_side_information = {}
         if entity_side_information:
             self.entity_to_side_information = self.get_side_information(entity_side_information)
-        '''
 
     def __len__(self):
         return len(self.heads) * len(self.tails)
@@ -119,7 +117,6 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
-        '''
         if self.pair_to_side_information or self.entity_to_side_information:
             encoding = []
             pair_side_info = self.pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
@@ -142,8 +139,7 @@ class PEDLDataset(Dataset):
                 )
                 encoding.append(features_text.input_ids + features_side.input_ids)
         else:
-        '''
-        encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
+            encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
                                                         truncation=True)
         sample = {
             "encoding": encoding,
@@ -155,7 +151,8 @@ class PEDLDataset(Dataset):
 
         return sample
 
-    def get_side_information(self, file_name):
+    @staticmethod
+    def get_side_information(file_name):
         side_information = {}
         with open(hydra.utils.to_absolute_path(Path("data") / "side_information" / file_name)) as f:
             for line in f:

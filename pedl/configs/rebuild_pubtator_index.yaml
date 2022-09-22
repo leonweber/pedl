@@ -10,6 +10,5 @@ defaults:
   - entities: default
   - masking: default
 
-pubtator: localhost:9200
-#pubtator=https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/
+pubtator: ???
 n_processes: False

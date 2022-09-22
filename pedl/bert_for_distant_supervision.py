@@ -20,8 +20,10 @@ class BertForDistantSupervision(BertPreTrainedModel):
                  entity_marker: dict = None,
                  **kwargs):
         super().__init__(config, *inputs, **kwargs)
-        self.num_labels = 7
-
+        if config._name_or_path == 'barthfab/drugprot':
+            self.num_labels = 14
+        else:
+            self.num_labels = 7
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.tokenizer = tokenizer

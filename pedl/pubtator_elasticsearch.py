@@ -76,8 +76,8 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, ent
 
                     entities_passage = []
                     for annotation in passage.annotations:
-                        entities_ann = DataGetterAPI.get_entities_from_annotation(annotation,
-                                                                                  {})
+                        entities_ann = DataGetterAPI.get_entities_from_annotation(annotation=annotation,
+                                                                                  homologue_mapping={})
                         for entity in entities_ann:
                             for location in annotation.locations:
                                 span = (location.offset-passage.offset,
@@ -186,3 +186,7 @@ def build_index(pubtator_path, n_processes, masked_types=None, entity_marker: di
 
     for p in processes:
         p.join()
+
+
+if __name__ == '__main__':
+    build_index(pubtator_path='/glusterfs/dfs-gfs-dist/wbi-shared/corpora/pubtator-central-2021/output/BioCXML', n_processes=1)

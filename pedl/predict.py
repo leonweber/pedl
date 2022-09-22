@@ -21,7 +21,6 @@ from pedl.utils import get_hgnc_symbol_to_gene_id, get_geneid_to_name, Entity, m
 
 PREFIX_PROCESSED_PAIRS = ".pairs_processed"
 
-
 def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
     processed_pairs = set()
     for file in dir_out.glob(PREFIX_PROCESSED_PAIRS + "*"):
