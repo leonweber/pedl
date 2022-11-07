@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 from pedl.utils import build_summary_table
 
 
-@hydra.main(config_path="../configs", config_name="summarize.yaml")
+@hydra.main(config_path="./configs", config_name="summarize.yaml")
 def summarize(cfg: DictConfig):
     if not cfg.out:
         file_out = (cfg.path_to_files.parent / cfg.path_to_files.name).with_suffix(".tsv")

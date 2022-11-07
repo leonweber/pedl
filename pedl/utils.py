@@ -1,25 +1,28 @@
 import gzip
 import json
+import logging
 import os
 import re
 import shutil
 import tempfile
-import logging
+import urllib
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
+from io import BytesIO
 from operator import itemgetter
 from pathlib import Path
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
-from tqdm import tqdm as _tqdm, tqdm
+from urllib.request import urlopen
 
-import requests
 import bioc
 import numpy as np
-from transformers.file_utils import default_cache_path
+import requests
 from pytorch_lightning.utilities import rank_zero_only
-from segtok.segmenter import split_multi, split_single
-
+from segtok.segmenter import split_multi
+from tqdm import tqdm as _tqdm, tqdm
+from transformers.file_utils import default_cache_path
 
 cache_root = Path(
     os.getenv("PEDL_CACHE", Path(default_cache_path).parent.parent / "pedl")
@@ -457,7 +460,7 @@ def build_summary_table(
 
     hgnc_symbols = set(get_hgnc_symbol_to_gene_id().keys())
 
-    files = list(raw_dir.glob("*.txt"))
+    files = list(Path(raw_dir).glob("*.txt"))
     for file in tqdm(files):
         with file.open() as f:
             p1 = file.name.replace(".txt", "").split("_")[0]
@@ -513,11 +516,14 @@ def get_hgnc_symbol_to_gene_id():
 
 
 def get_mesh_id_to_chem_name():
+    resp = urlopen("http://ctdbase.org/reports/CTD_chemicals.tsv.gz")
     mesh_id_to_chem_name = {}
-    url = "http://ctdbase.org/reports/CTD_chemicals.tsv.gz"
-    with gzip.open(cached_path(url, cache_dir=cache_root)) as f:
-        for line in f:
-            fields = line.decode().strip().split("\t")
+    with gzip.open(BytesIO(resp.read())) as f:
+        lines = f.readlines()
+        for line in lines:
+            fields = line.decode('utf-8').strip().split("\t")
+            if fields[0].startswith('# ChemicalName'):
+                continue
             if len(fields) > 5:
                 symbol = fields[0]
                 mesh_id = fields[1]
@@ -528,7 +534,9 @@ def get_mesh_id_to_chem_name():
 def maybe_mapped_entities(entities, normalized_entity_ids, skip_invalid=False):
     maybe_mapped_entities = []
     for entity in entities:
-        if not entity.isnumeric():
+        if re.match(r"^[A-Z]\d+", entity):
+            entity = 'MESH:' + entity
+        if not re.match(r"\d+", entity) and not entity.startswith('MESH:'):
             if not skip_invalid:
                 assert entity in normalized_entity_ids, f"{entity} is neither a valid HGNC symbol nor a Entrez gene id"
             elif entity not in normalized_entity_ids:
@@ -537,3 +545,26 @@ def maybe_mapped_entities(entities, normalized_entity_ids, skip_invalid=False):
         else:
             maybe_mapped_entities.append(entity)
     return maybe_mapped_entities
+
+
+def doc_synced(final_path, type):
+    local_time = datetime.utcfromtimestamp(os.path.getmtime(final_path)).strftime('%Y-%m-%d %H:%M')
+    weburl = urllib.request.urlopen("https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral")
+    url_lines = weburl.readlines()
+    if type == 'gene':
+        # get the Last modified date of gene2pubtatorcentral.gz
+        x = str(url_lines[23]).split('</a>')[-1]
+        x = " ".join(list(filter(None, x.split(' ')))[0:2])
+    else:
+        # get the Last modified date of chemical2pubtatorcentral.gz
+        x = str(url_lines[19]).split('</a>')[-1]
+        x = " ".join(list(filter(None, x.split(' ')))[0:2])
+    if x > local_time:
+        really_continue = input(f"Your local {type}2pubtatorcentral is outdated. Do you want to download the lastes version? Type 'yes':\n")
+        if really_continue == "yes":
+            print("Downloading gene2pubtatorcentral...")
+            path = cached_path(
+                "https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
+                "data",
+            )
+            unpack_file(path, final_path)
