@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import sys
+
+sys.path.append("/glusterfs/dfs-gfs-dist/barthfab/pedl")
 import hydra
 from pathlib import Path
 from omegaconf import DictConfig

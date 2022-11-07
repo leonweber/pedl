@@ -9,18 +9,13 @@ defaults:
   - database: default
   - entities: default
   - masking: default
+  - type: ${type}
 
 e1: ???
 e2: ???
-type1: ???
-type2: ???
 
-out: "PEDL_predictions"
-drug_model: "barthfab/drugprot"
-prot_model: "leonweber/PEDL"
-batch_size: 1
+#todo rename local_pubtator
 pubtator: localhost:9200
-#localhost:4243
 device: cpu
 topk: False
 cutoff: 0.01
@@ -29,13 +24,5 @@ api_fallback: False
 skip_reverse: False
 skip_invalid: False
 verbose: False
-expand_species:
-multi_sentence: False
-num_workers: 1
-worker_id: 0
-local_model: False
-max_sequence_length: 512
-use_cls: False
-use_starts: False
-use_ends: False
-entity_embeddings: True
+
+out: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions"

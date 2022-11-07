@@ -12,21 +12,10 @@ from segtok.segmenter import split_single
 from pedl.utils import Entity
 from pedl.data_getter import DataGetterAPI
 
-logger = logging.getLogger(__name__)
+#logger = logging.getLogger(__name__)
 
 
 class PEDLDataset(Dataset):
-    label_to_id = {
-        "in-complex-with": 0,
-        "controls-state-change-of": 1,
-        "controls-transport-of": 2,
-        "controls-phosphorylation-of": 3,
-        "controls-expression-of": 4,
-        "catalysis-precedes": 5,
-        "interacts-with": 6,
-    }
-    id_to_label = {v: k for k, v in label_to_id.items()}
-
     def __init__(
         self,
         heads: List[Entity],
@@ -43,7 +32,10 @@ class PEDLDataset(Dataset):
         sentence_max_length: Optional[int] = None,
         entity_marker: dict = None,
         masking_types: dict = None,
+        label_to_id: dict = None,
     ):
+        self.label_to_id = label_to_id
+        self.id_to_label = {v: k for k, v in label_to_id.items()}
         self.heads = heads
         self.tails = tails
         self.max_bag_size = max_bag_size
@@ -55,14 +47,13 @@ class PEDLDataset(Dataset):
                                   "head_end": '</e1>',
                                   "tail_start": '<e2>',
                                   "tail_end": '</e2>'}
-        if masking_types:
-            assert masking_types["Gene"], "By now only entity masking for proteins is implemented. Please use Gene "
+        if masking_types and base_model == 'leonweber/PEDL':
             self.tokenizer.add_special_tokens(
                 {
-                    "additional_special_tokens": list(entity_marker.values()) + [f"<protein{i}/>" for i in range(1, 47)]
+                    "additional_special_tokens": list(entity_marker.values()) + [f"<{masking_types['Gene']}{i}/>" for i in range(1, 47)]
                 }
             )
-        else:
+        elif masking_types:
             self.tokenizer.add_special_tokens(
                 {
                     "additional_special_tokens": list(entity_marker.values())
@@ -150,6 +141,12 @@ class PEDLDataset(Dataset):
         }
 
         return sample
+
+    def get_id(self, label):
+        return self.label_to_id[label]
+
+    def get_label(self, label_id):
+        return self.id_to_label[label_id]
 
     @staticmethod
     def get_side_information(file_name):

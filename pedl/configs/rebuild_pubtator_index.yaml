@@ -10,5 +10,6 @@ defaults:
   - entities: default
   - masking: default
 
+# todo local_pubtator
 pubtator: ???
-n_processes: False
+n_processes: 70

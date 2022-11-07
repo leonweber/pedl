@@ -1,4 +1,5 @@
 import abc
+import os
 import logging
 import warnings
 from collections import defaultdict
@@ -14,7 +15,7 @@ from tqdm import tqdm
 
 from pedl.utils import get_homologue_mapping, cache_root, SegtokSentenceSplitter, \
     cached_path, unpack_file, chunks, Entity, Sentence, get_pmid, \
-    replace_consistently, replace_consistently_dict
+    replace_consistently, replace_consistently_dict, doc_synced
 
 
 class DataGetter(abc.ABC):
@@ -65,9 +66,9 @@ class DataGetterPubtator(DataGetter):
             for idx_head, span_head in enumerate(spans_head):
                 for idx_tail, span_tail in enumerate(spans_tail):
                     span_to_replacement = {
-                        tuple(span_head): self.et['head_start'] + text_orig[span_head[0]:span_head[1]]
+                        tuple(span_head): self.et['head_start'] + text_orig[span_head[0]:span_head[-1]]
                         + self.et['head_end'],
-                        tuple(span_tail): self.et['tail_start'] + text_orig[span_tail[0]:span_tail[1]]
+                        tuple(span_tail): self.et['tail_start'] + text_orig[span_tail[0]:span_tail[-1]]
                         + self.et['tail_end'],
                     }
                     text = replace_consistently_dict(text=text_orig, span_to_replacement=span_to_replacement)
@@ -143,6 +144,7 @@ class DataGetterAPI(DataGetter):
                 "data",
             )
             unpack_file(path, final_path)
+        doc_synced(final_path, 'gene')
 
         with final_path.open() as f:
             for line in tqdm(f, total=53880670, desc="Loading gene2pubtatorcentral"):
@@ -179,6 +181,7 @@ class DataGetterAPI(DataGetter):
             )
             unpack_file(path, final_path)
 
+        doc_synced(final_path, 'chemical')
         with final_path.open() as f:
             for line in tqdm(
                     f, total=104567794, desc="Loading chemical2pubtatorcentral"
@@ -248,7 +251,7 @@ class DataGetterAPI(DataGetter):
                 if annotation.infons["type"] not in {entity1.type, entity2.type}:
                     continue
 
-                entities_ann = self.get_entities_from_annotation(annotation)
+                entities_ann = self.get_entities_from_annotation(annotation, self.homologue_mapping)
 
                 if entity1 in entities_ann:
                     for loc in annotation.locations:
@@ -404,7 +407,7 @@ class DataGetterAPI(DataGetter):
             for loc in ann.locations:
                 if snippet_end >= loc.offset - passage.offset >= snippet_start:
                     offset_idx = len(offsets)
-                    entities = self.get_entities_from_annotation(ann)
+                    entities = self.get_entities_from_annotation(ann, self.homologue_mapping)
                     for entity in entities:
                         entity_to_offset_idx[entity].append(len(offsets))
 
