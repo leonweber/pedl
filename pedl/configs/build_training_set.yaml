@@ -9,11 +9,12 @@ defaults:
   - entities: default
   - masking: default
 
-out: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions/out"
-out_blinded: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions/out_blinded"
+out: ""
+out_blinded: ""
 expand_species: null
 triples: ???
-pubtator: localhost:4243
+#e.g. localhost:4243
+pubtator:  ""
 chemprot: true
 
 n_worker: 1
