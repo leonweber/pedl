@@ -15,7 +15,8 @@ e1: ???
 e2: ???
 
 #todo rename local_pubtator
-pubtator: localhost:9200
+#e.g. localhost:9200
+pubtator: ""
 device: cpu
 topk: False
 cutoff: 0.01
@@ -25,4 +26,4 @@ skip_reverse: False
 skip_invalid: False
 verbose: False
 
-out: "/glusterfs/dfs-gfs-dist/barthfab/pedl/pedl/PEDL_predictions"
+out: "/PEDL_predictions"
