@@ -16,9 +16,9 @@ setup(
     install_requires=required,
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    entry_points={"console_scripts": ["pedl-summarize=pedl.summarize:main",
-                                      "pedl-rebuild_pubtator_index=pedl.rebuild_pubtator_index:main",
-                                      "pedl-build_training_set=pedl.build_training_set:main",
-                                      "pedl-predict=pedl.predict:main"]},
+    entry_points={"console_scripts": ["pedl-summarize=pedl.summarize:summarize",
+                                      "pedl-rebuild_pubtator_index=pedl.rebuild_pubtator_index:rebuild_pubtator_index",
+                                      "pedl-build_training_set=pedl.build_training_set:build_training_set",
+                                      "pedl-predict=pedl.predict:predict"]},
     package_data={"pedl": ["data/*"]}
 )
