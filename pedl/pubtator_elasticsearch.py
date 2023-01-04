@@ -187,6 +187,3 @@ def build_index(pubtator_path, n_processes, masked_types=None, entity_marker: di
     for p in processes:
         p.join()
 
-
-if __name__ == '__main__':
-    build_index(pubtator_path='/glusterfs/dfs-gfs-dist/wbi-shared/corpora/pubtator-central-2021/output/BioCXML', n_processes=1)

@@ -18,8 +18,6 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 import hydra
 
-from pedl.utils import get_hgnc_symbol_to_gene_id
-
 np.random.seed(42)
 random.seed(42)
 
@@ -369,7 +367,7 @@ def summarize_excel(cfg):
     wb.save(output_file)
 
 
-@hydra.main(config_path="./configs", config_name="summarize.yaml")
+@hydra.main(config_path="./configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
     # if not cfg.out:
     #     file_out = (cfg.path_to_files.parent / cfg.path_to_files.name).with_suffix(".tsv")

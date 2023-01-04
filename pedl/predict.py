@@ -35,7 +35,7 @@ def get_processed_pairs(dir_out: Path) -> Set[Tuple[str, str]]:
 
 
 @torch.no_grad()
-@hydra.main(config_path="./configs", config_name="predict.yaml")
+@hydra.main(config_path="./configs", config_name="predict.yaml", version_base=None)
 def predict(cfg: DictConfig):
 
     head_id_to_entity = ID_MAPPING[cfg.type.head_type]()

@@ -1,7 +1,3 @@
-import sys
-
-sys.path.append("/glusterfs/dfs-gfs-dist/barthfab/pedl")
-
 #!/usr/bin/env python
 
 import hydra
@@ -15,7 +11,7 @@ from pedl.utils import Entity
 from pedl.data_getter import DataGetterPubtator, DataGetterAPI
 
 
-@hydra.main(config_path="./configs", config_name="build_training_set.yaml")
+@hydra.main(config_path="./configs", config_name="build_training_set.yaml", version_base=None)
 def build_training_set(cfg: DictConfig):
     pair_to_relations = defaultdict(set)
     pmid_to_pairs = defaultdict(set)
