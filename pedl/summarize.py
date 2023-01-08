@@ -367,7 +367,7 @@ def summarize_excel(cfg):
     wb.save(output_file)
 
 
-@hydra.main(config_path="./configs", config_name="summarize.yaml", version_base=None)
+@hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
     # if not cfg.out:
     #     file_out = (cfg.path_to_files.parent / cfg.path_to_files.name).with_suffix(".tsv")
