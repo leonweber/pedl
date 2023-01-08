@@ -39,7 +39,7 @@ You can then run rebuild_pubtator_index. Building a pubtator index can take some
 
 * #### rebuild pubtator index
     ```bash
-    pedl rebuild_pubtator_index pubtator=<PATH_TO_PUBTATOR>
+    pedl-rebuild_pubtator_index pubtator=<PATH_TO_PUBTATOR>
     ```
 
 ### predict
@@ -52,7 +52,7 @@ can either be set to "protein_protein" if you want to run protein-protein intera
 or to "drug_protein" if you want to predict drug-protein interactions.
 
   * ```bash
-      pedl predict e1=CD274 e2=CMTM6 type=protein_protein out=PEDL_predictions
+      pedl-predict e1=CD274 e2=CMTM6 type=protein_protein out=PEDL_predictions
       ```
 
     Results:
@@ -67,7 +67,7 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   or
 
   * ```bash
-      pedl predict e1=Amphetamine e2=MAOB type=drug_protein out=PEDL_predictions
+      pedl-predict e1=Amphetamine e2=MAOB type=drug_protein out=PEDL_predictions
       ```
 
 
@@ -76,28 +76,28 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   
   * Protein-Protein
     ```bash
-    pedl predict e1=[CMTM6,PDCD1LG2] e2=CD274 type=protein_protein out=PEDL_predictions
+    pedl-predict e1=[CMTM6,PDCD1LG2] e2=CD274 type=protein_protein out=PEDL_predictions
     ```
     searches for interactions between CD274 and CMTM6, and for interactions between CD274 and PDCD1LG2
 
   * Drug-Protein
 
     ```bash
-    pedl predict e1=[MESH:D000661,D008694] e2=4129 type=drug_protein out=PEDL_predictions
+    pedl-predict e1=[MESH:D000661,D008694] e2=4129 type=drug_protein out=PEDL_predictions
     ```
 
 * #### Pairwise interactions between all proteins or drugs
   
   * Protein-Protein
     ```bash
-    pedl predict e1=all e2=CD274 type=protein_protein out=PEDL_predictions
+    pedl-predict e1=all e2=CD274 type=protein_protein out=PEDL_predictions
     ```
     searches for interactions between CD274 and all proteins in the current hgnc data base.
 
   * Drug-Protein
 
     ```bash
-    pedl predict e1=all e2=4129 type=drug_protein out=PEDL_predictions
+    pedl-predict e1=all e2=4129 type=drug_protein out=PEDL_predictions
     ```
     searches for interactions between 4129 and all drugs in the current MESH data base.
 
@@ -105,14 +105,14 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   
   * Protein-Protein
     ```bash
-    pedl predict e1=proteins.txt e2=[54918,920] type=protein_protein out=PEDL_predictions
+    pedl-predict e1=proteins.txt e2=[54918,920] type=protein_protein out=PEDL_predictions
     ```
     searches for interactions between the proteins in `proteins.txt` and 54918, as well as interactions between proteins in `proteins.txt` and 920
 
   * Drug-Protein
 
     ```bash
-    pedl predict e1=drug.txt e2=4129 type=drug_protein out=PEDL_predictions
+    pedl-predict e1=drug.txt e2=4129 type=drug_protein out=PEDL_predictions
     ```
     searches for interactions between the drugs in `drug.txt` and 4129
 
@@ -122,11 +122,11 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   If you want PEDL to read text snippets that span multiple sentences, use
   `--multi_sentence`. Note, that this may slow down reading by a lot if you are not using a GPU.
   ```bash
-    pedl predict e1=CD274 e2=CMTM6 out=PEDL_predictions multi_sentence=True
+    pedl-predict e1=CD274 e2=CMTM6 out=PEDL_predictions multi_sentence=True
   ```
   
     ```bash
-    pedl predict e1=D008694 e2=4129 out=PEDL_predictions multi_sentence=True
+    pedl-predict e1=D008694 e2=4129 out=PEDL_predictions multi_sentence=True
   ```
   
 # 
@@ -136,7 +136,7 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   via homology classes defined by the [Alliance of Genome Resources](http://www.informatics.jax.org/homology.shtml):
   
     ```bash
-    pedl predict p1=29126 p2=54918 out=PEDL_predictions expand_species=[mouse,zebrafish]
+    pedl-predict p1=29126 p2=54918 out=PEDL_predictions expand_species=[mouse,zebrafish]
     ```
     would also include interactions in mouse and zebrafish.
   
@@ -146,12 +146,12 @@ or to "drug_protein" if you want to predict drug-protein interactions.
   of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
   Unpack the PubTatorCentral files and point PEDL towards the files:
     ```bash
-    pedl predict e1=large_protein_list1.txt e2=large_protein_list2 out=PEDL_predictions pubtator=<PATH_TO_PUBTATOR>
+    pedl-predict e1=large_protein_list1.txt e2=large_protein_list2 out=PEDL_predictions pubtator=<PATH_TO_PUBTATOR>
     ```
 
   In this case, it is also strongly advised to use a CUDA-compatible GPU to speed up the machine reading:
     ```bash
-    pedl predict e1=large_protein_list1.txt e2=large_protein_list2 out=PEDL_predictions
+    pedl-predict e1=large_protein_list1.txt e2=large_protein_list2 out=PEDL_predictions
       pubtator=<PATH_TO_PUBTATOR> device=cuda
     ```
   
@@ -159,7 +159,7 @@ or to "drug_protein" if you want to predict drug-protein interactions.
 Use `summarize` to create a summary file describing all results in a directory.
 By default, PEDL will create the summary CSV next to the results directory.
 ```bash
-pedl summarize PEDL_predictions
+pedl-summarize PEDL_predictions
 ```
 Results:
   ```bash
@@ -172,7 +172,7 @@ Results:
 
 Results can also be aggregate ignoring the association type and the direction of the association: 
 ```bash
-  $ pedl summarize PEDL_predictions no_association_type=True
+  $ pedl-summarize PEDL_predictions no_association_type=True
   
   $ cat PEDL_predictions.tsv
   p1      association type        p2      score (sum)     score (max)
