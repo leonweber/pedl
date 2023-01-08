@@ -20,5 +20,5 @@ setup(
                                       "pedl-rebuild_pubtator_index=pedl.rebuild_pubtator_index:rebuild_pubtator_index",
                                       "pedl-build_training_set=pedl.build_training_set:build_training_set",
                                       "pedl-predict=pedl.predict:predict"]},
-    package_data={"pedl": ["data/*"]}
+    package_data={"pedl": ["data/*", 'configs/*']}
 )
