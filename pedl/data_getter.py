@@ -105,13 +105,13 @@ class DataGetterAPI(DataGetter):
             gene_universe: Optional[Set[str]] = None,
             chemical_universe: Optional[Set[str]] = None,
             expand_species: Optional[List[str]] = None,
-            blind_entity_types: Optional[Set[str]] = None,
+            entity_to_mask: Optional[Dict[str, str]] = None,
             entity_marker: dict = None
     ):
         self.gene_universe = gene_universe or set()
         self.chemical_universe = chemical_universe or set()
         self.expand_species = expand_species or []
-        self.blind_entity_types = blind_entity_types or set()
+        self.entity_to_mask = entity_to_mask or set()
         if self.expand_species:
             self.homologue_mapping = get_homologue_mapping(
                 self.expand_species, self.gene_universe
@@ -147,7 +147,7 @@ class DataGetterAPI(DataGetter):
         doc_synced(final_path, 'gene')
 
         with final_path.open() as f:
-            for line in tqdm(f, total=53880670, desc="Loading gene2pubtatorcentral"):
+            for line in tqdm(f, total=70000000, desc="Loading gene2pubtatorcentral"):
                 line = line.strip()
                 fields = line.split("\t")
                 gene_id = fields[2]
@@ -450,14 +450,16 @@ class DataGetterAPI(DataGetter):
         masked_indices = set()
         blinded_text = text
         for i, (entity, idcs) in enumerate(entity_to_offset_idx.items(), start=1):
-            if entity.type not in self.blind_entity_types:
+            if entity.type not in self.entity_to_mask:
                 continue
+
+            masking_type = self.entity_to_mask[entity.type]
             for idx in idcs:
                 if idx not in masked_indices:
                     blinded_text, offsets = replace_consistently(
                         offset=offsets[idx],
                         length=lengths[idx],
-                        replacement=f"<{entity.type.lower()}{i}/>",
+                        replacement=f"<{masking_type}{i}/>",
                         text=blinded_text,
                         offsets=offsets,
                     )

@@ -13,6 +13,7 @@ entity_embeddings: False
 num_labels: 14
 head_type: Chemical
 tail_type: Gene
+entity_to_mask: null
 
 label_to_id :
   NONE: 0

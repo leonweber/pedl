@@ -28,10 +28,10 @@ class PEDLDataset(Dataset):
         entity_side_information: str = None,
         relations: Optional[List[Set[str]]] = None,
         max_bag_size: Optional[int] = None,
-        blind_entities: bool = True,
+        mask_entities: bool = True,
         sentence_max_length: Optional[int] = None,
         entity_marker: dict = None,
-        masking_types: dict = None,
+        entity_to_mask: dict = None,
         label_to_id: dict = None,
     ):
         self.label_to_id = label_to_id
@@ -47,21 +47,22 @@ class PEDLDataset(Dataset):
                                   "head_end": '</e1>',
                                   "tail_start": '<e2>',
                                   "tail_end": '</e2>'}
-        if masking_types and base_model == 'leonweber/PEDL':
+
+        self.tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": list(entity_marker.values())
+            })
+        if entity_to_mask:
             self.tokenizer.add_special_tokens(
                 {
-                    "additional_special_tokens": list(entity_marker.values()) + [f"<{masking_types['Gene']}{i}/>" for i in range(1, 47)]
+                    "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
                 }
             )
-        elif masking_types:
-            self.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens": list(entity_marker.values())
-                })
+
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
         self.relations = relations
-        self.blind_entities = blind_entities
+        self.mask_entities = mask_entities
         self.sentence_max_length = sentence_max_length
         self.skip_pairs = skip_pairs
         self.max_length = max_length
@@ -103,7 +104,7 @@ class PEDLDataset(Dataset):
         if self.max_bag_size and len(sentences) > self.max_bag_size:
             sentences = random.sample(sentences, self.max_bag_size)
 
-        if self.blind_entities:
+        if self.mask_entities:
             texts = [s.text_blinded for s in sentences]
         else:
             texts = [s.text for s in sentences]

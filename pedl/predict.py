@@ -60,7 +60,7 @@ def predict(cfg: DictConfig):
 
     geneid_to_name = get_geneid_to_name()
     if len(heads) * len(tails) > 100 and not cfg.pubtator:
-        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(e1s)} pairs. Aborting.")
+        print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
     if not cfg.device:
@@ -85,7 +85,7 @@ def predict(cfg: DictConfig):
         data_getter = DataGetterAPI(gene_universe=gene_universe,
                                     chemical_universe=chem_universe,
                                     expand_species=cfg.type.expand_species,
-                                    blind_entity_types={cfg.type.head_type, cfg.type.tail_type},
+                                    entity_to_mask=cfg.type.entity_to_mask,
                                     entity_marker=cfg.entities.entity_marker
                                     )
     dataset = PEDLDataset(heads=heads,
@@ -97,7 +97,8 @@ def predict(cfg: DictConfig):
                           max_bag_size=cfg.max_bag_size,
                           entity_marker=cfg.entities.entity_marker,
                           max_length=cfg.type.max_sequence_length,
-                          label_to_id=cfg.type.label_to_id
+                          label_to_id=cfg.type.label_to_id,
+                          entity_to_mask=cfg.type.entity_to_mask,
                           )
     model = BertForDistantSupervision.from_pretrained(cfg.type.model_name,
                                                       tokenizer=dataset.tokenizer,

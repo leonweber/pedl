@@ -13,6 +13,8 @@ entity_embeddings: True
 num_labels: 7
 head_type: Gene
 tail_type: Gene
+entity_to_mask:
+  Gene: 'protein'
 
 label_to_id :
   in-complex-with: 0
