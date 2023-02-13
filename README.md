@@ -72,18 +72,6 @@ These can be looked up via standard webinterfaces like
     ```
     would also include interactions in mouse and zebrafish.
 
-
-* #### Interactions from pathway databases
-  It is also possible to query PathwayCommons for interactions. 
-  This requires the python package `indra` to be installed, which can be achieved
-  via `pip install indra`:
-  ```bash
-    pedl predict --p1 29126 --p2 54918 --out PEDL_predictions --dbs pid reactome kegg
-  ```
-  to query `pid` `reactome` and `kegg`. See `--help` for the full list of available
-  databases.
-  
-  
 * #### Large gene lists
   If you need to test for more than 100 interactions at once, you have to use a local copy 
   of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
