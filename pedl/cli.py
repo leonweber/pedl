@@ -104,7 +104,7 @@ def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    parser_predict = subparsers.add_parser("predict")
+    parser_predict = subparsers.add_parser("extract")
 
     parser_predict.add_argument('--p1', required=True, nargs="+")
     parser_predict.add_argument('--p2', required=True, nargs="+")
@@ -127,7 +127,7 @@ def main():
     parser_predict.add_argument('--pmids', type=Path, default=None)
     parser_predict.set_defaults(func=predict)
 
-    parser_summarize = subparsers.add_parser("summarize")
+    parser_summarize = subparsers.add_parser("summarize_csv")
     parser_summarize.set_defaults(func=summarize)
 
     parser_summarize.add_argument("path_to_files", type=Path)
@@ -155,7 +155,7 @@ def main():
     parser_rebuild_pubtator_index.add_argument("--n_processes", type=int, default=None)
 
     ## Summarize Excel
-    parser_summarize_excel = subparsers.add_parser("summarize_excel")
+    parser_summarize_excel = subparsers.add_parser("summarize")
     parser_summarize_excel.set_defaults(func=summarize_excel)
     parser_summarize_excel.add_argument("--ppa_dir", type=Path, required=True)
     parser_summarize_excel.add_argument("--output", type=Path, required=True)
