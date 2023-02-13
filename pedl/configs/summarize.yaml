@@ -11,8 +11,13 @@ default:
   - entities: default
   - masking: default
 
-path_to_files: ???
+ppa_dir: ???
 
-out: None
+out: null
 cutoff: 0.0
+mesh_terms: null
 no_association_type: False
+set_a: null
+set_b: null
+top_k_articles: null
+annotation: False
