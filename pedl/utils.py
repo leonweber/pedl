@@ -450,49 +450,6 @@ def get_gene_mapping(from_db: str, to_db: str):
     return dict(final_mapping)
 
 
-def build_summary_table(
-    raw_dir: Path, score_cutoff: float = 0.0, no_association_type: bool = False
-) -> List[Tuple[str, float]]:
-    table = []
-
-    rel_to_score_sum = defaultdict(float)
-    rel_to_score_max = defaultdict(float)
-
-    hgnc_symbols = set(get_hgnc_symbol_to_gene_id().keys())
-
-    files = list(Path(raw_dir).glob("*.txt"))
-    for file in tqdm(files):
-        with file.open() as f:
-            p1 = file.name.replace(".txt", "").split("_")[0]
-
-            if p1 in hgnc_symbols:
-                # P1_P2 or P1_P_2
-                p2 = "_".join(file.name.replace(".txt", "").split("_")[1:])
-            else:
-                # P_1_P2 or P_1_P_2
-                p1 = "_".join(file.name.replace(".txt", "").split("_")[:2])
-                p2 = "_".join(file.name.replace(".txt", "").split("_")[2:])
-            for line in f:
-                fields = line.strip().split()
-                if fields:
-                    if no_association_type:
-                        p1_unified, p2_unified = sorted([p1, p2])
-                        rel = (p1_unified, "association", p2_unified)
-                    else:
-                        rel = (p1, fields[0], p2)
-                    if float(fields[1]) >= score_cutoff:
-                        rel_to_score_sum[rel] += float(fields[1])
-                        rel_to_score_max[rel] = max(
-                            float(fields[1]), rel_to_score_max[rel]
-                        )
-
-    for rel, score_sum in rel_to_score_sum.items():
-        score_max = rel_to_score_max[rel]
-        row = rel + (score_sum, score_max)
-        table.append(row)
-
-    return sorted(table, key=itemgetter(3), reverse=True)
-
 
 def overlaps(a, b):
     a = [int(i) for i in a]
