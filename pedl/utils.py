@@ -531,19 +531,16 @@ def get_mesh_id_to_chem_name():
     return mesh_id_to_chem_name
 
 
-def maybe_mapped_entities(entities, normalized_entity_ids, skip_invalid=False):
+def maybe_mapped_entities(entities, normalized_entity_ids, use_ids=False):
     maybe_mapped_entities = []
-    for entity in entities:
-        if re.match(r"^[A-Z]\d+", entity):
-            entity = 'MESH:' + entity
-        if not re.match(r"\d+", entity) and not entity.startswith('MESH:'):
-            if not skip_invalid:
-                assert entity in normalized_entity_ids, f"{entity} is neither a valid HGNC symbol nor a Entrez gene id"
-            elif entity not in normalized_entity_ids:
-                continue
-            maybe_mapped_entities.append(normalized_entity_ids[entity])
-        else:
+    if use_ids:
+        for entity in entities:
+            if re.match(r"^[A-Z]\d+", entity):
+                entity = 'MESH:' + entity
             maybe_mapped_entities.append(entity)
+    else:
+        for entity in entities:
+            maybe_mapped_entities.append(normalized_entity_ids[entity])
     return maybe_mapped_entities
 
 

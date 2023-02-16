@@ -2,4 +2,4 @@ default:
   - _self_
   - database: default
   - entities: default
-  - masking: default
+  - override hydra/help: pubtator_elasticsearch_help

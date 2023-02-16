@@ -1,0 +1,34 @@
+app_name: pedl pubtator_elasticsearch
+app_tag: pubtator_elasticsearch
+
+header: == ${hydra.help.app_name} ==
+
+footer: |-
+  You can find the detailed description on how to use
+  PEDL here: https://github.com/leonweber/pedl
+  
+  Powered by Hydra (https://hydra.cc)
+  Use --hydra-help to view Hydra specific help
+
+template: |-
+  ${hydra.help.header}
+  
+  This is ${hydra.help.app_name}
+  You can use ${hydra.help.app_name} as follows: 
+  ${hydra.help.app_name}
+  
+  == Configuration groups ==
+  
+  $APP_CONFIG_GROUPS
+  
+  == Config ==
+  
+  You can override every flag, for example:
+  '${hydra.help.app_name} triples=[] n_processes=50'
+  
+  -------
+  All config values set for this ${hydra.help.app_tag}:
+  
+  $CONFIG
+  -------
+  ${hydra.help.footer}

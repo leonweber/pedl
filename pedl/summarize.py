@@ -132,7 +132,6 @@ def _add_table(sheet, num_rows, num_cols):
             i += 1
 
 
-
 def fill_sheet_from_df(
     sheet,
     df: pd.DataFrame,
@@ -317,48 +316,45 @@ def summarize_excel(cfg):
     else:
         pmid_to_mesh_terms = None
 
-    df_summary = build_summary_table(raw_dir=Path(cfg.ppa_dir), score_cutoff=cfg.cutoff)
+    df_summary = build_summary_table(raw_dir=Path(cfg.input), score_cutoff=cfg.cutoff)
 
     wb = Workbook()
     sheet = wb.active
 
-    if cfg.set_a:
-        with cfg.set_a.open() as f:
-            set_a = set(f.read().split("\n"))
-            df_a_to_b = df_summary[df_summary["head"].isin(set_a)]
-            df_b_to_a = df_summary[df_summary["tail"].isin(set_a)]
-            sheet.title = f"{cfg.set_a.with_suffix('').name} -> other"[:31]
+    if cfg.entity_set:
+        with cfg.entity_set.open() as f:
+            entity_set = set(f.read().split("\n"))
+            df_a_to_b = df_summary[df_summary["head"].isin(entity_set)]
+            df_b_to_a = df_summary[df_summary["tail"].isin(entity_set)]
+            sheet.title = f"{cfg.entity_set.with_suffix('').name} -> other"[:31]
             fill_sheet_from_df(
                 sheet=sheet,
                 df=df_a_to_b,
-                ppa_dir=Path(cfg.ppa_dir),
+                ppa_dir=Path(cfg.input),
                 threshold=cfg.cutoff,
                 top_k_articles=cfg.top_k_articles,
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
-                annotation_mode=cfg.annotation,
             )
             _add_summary_sheet(df_a_to_b, sheet, wb)
 
-            sheet = wb.create_sheet(title=f"other -> {cfg.set_a.with_suffix('').name}"[:31])
+            sheet = wb.create_sheet(title=f"other -> {cfg.entity_set.with_suffix('').name}"[:31])
             fill_sheet_from_df(
                 sheet=sheet,
                 df=df_b_to_a,
-                ppa_dir=Path(cfg.ppa_dir),
+                ppa_dir=Path(cfg.input),
                 threshold=cfg.cutoff,
                 top_k_articles=cfg.top_k_articles,
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
-                annotation_mode=cfg.annotation,
             )
             _add_summary_sheet(df_b_to_a, sheet, wb)
     else:
         fill_sheet_from_df(
             sheet=sheet,
             df=df_summary,
-            ppa_dir=Path(cfg.ppa_dir),
+            ppa_dir=Path(cfg.input),
             threshold=cfg.cutoff,
             top_k_articles=cfg.top_k_articles,
             pmid_to_mesh_terms=pmid_to_mesh_terms,
-            annotation_mode=cfg.annotation,
         )
 
         _add_summary_sheet(df_summary, sheet, wb)
@@ -369,12 +365,4 @@ def summarize_excel(cfg):
 
 @hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
-    # if not cfg.out:
-    #     file_out = (cfg.path_to_files.parent / cfg.path_to_files.name).with_suffix(".tsv")
-    # else:
-    #     file_out = cfg.out
     summarize_excel(cfg)
-
-
-if __name__ == '__main__':
-    summarize()

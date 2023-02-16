@@ -8,8 +8,9 @@ defaults:
   - _self_
   - database: default
   - entities: default
-  - masking: default
+  - type: protein_protein
+  - override hydra/help: rebuild_pubtator_index_help
 
-# todo local_pubtator
-pubtator: ???
-n_processes: 70
+local_pubtator: ???
+#e.g. localhost:9200
+n_processes: 1

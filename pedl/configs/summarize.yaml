@@ -1,18 +1,27 @@
-
 # path to original working directory
 # hydra hijacks working directory by changing it to the current log directory,
 # so it's useful to have this path as a special variable
 # learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 work_dir: ${hydra:runtime.cwd}
 
-default:
+defaults:
   - _self_
   - database: default
   - entities: default
-  - masking: default
+  - override hydra/help: excel_summarize_help
 
-path_to_files: ???
+input: ???
+# extracted outputs
 
-out: None
-cutoff: 0.0
+out: "output"
+#output filename
+cutoff: 0.5
+#higher confidence than cutoff is extracted
 no_association_type: False
+#ignore relation type (head and tail only)
+top_k_articles: 5
+#number of k article per pair (relation)
+entity_set: null
+# subset deren relationen zu allen anderen proteinen summarized werden sollen
+mesh_terms: null
+#filter pubmed ids with the given mesh terms

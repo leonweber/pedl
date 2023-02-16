@@ -46,8 +46,8 @@ def predict(cfg: DictConfig):
 
     e1s = get_entity_list(cfg.e1, head_id_to_entity)
     e2s = get_entity_list(cfg.e2, tail_id_to_entity)
-    maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, cfg.skip_invalid)
-    maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, cfg.skip_invalid)
+    maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, cfg.use_ids)
+    maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, cfg.use_ids)
 
     heads = [Entity(cuid, cfg.type.head_type) for cuid in maybe_mapped_e1s]
     tails = [Entity(cuid, cfg.type.tail_type) for cuid in maybe_mapped_e2s]
@@ -59,7 +59,7 @@ def predict(cfg: DictConfig):
     processed_pairs = get_processed_pairs(Path(cfg.out))
 
     geneid_to_name = get_geneid_to_name()
-    if len(heads) * len(tails) > 100 and not cfg.pubtator:
+    if len(heads) * len(tails) > 100 and not cfg.local_pubtator:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
@@ -69,13 +69,11 @@ def predict(cfg: DictConfig):
         else:
             cfg.device = "cpu"
 
-
-    if cfg.pubtator:
-        data_getter = DataGetterPubtator(address=cfg.pubtator,
+    if cfg.local_pubtator:
+        data_getter = DataGetterPubtator(address=cfg.local_pubtator,
                                          entity_marker=cfg.entities.entity_marker
                                          )
     else:
-        #universum anpassen
         if cfg.type.head_type == cfg.type.tail_type:
             gene_universe = set(maybe_mapped_e1s + maybe_mapped_e2s)
             chem_universe = None
@@ -173,7 +171,3 @@ def get_entity_list(entity, normalized_entity_ids):
     else:
         p1s = [str(e) for e in entity]
     return p1s
-
-
-if __name__ == '__main__':
-    predict()

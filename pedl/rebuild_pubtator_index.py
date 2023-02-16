@@ -12,12 +12,7 @@ def rebuild_pubtator_index(cfg: DictConfig):
     really_continue = input("This will delete the pubtator index and rebuild it. Do you want to continue? Type 'yes':\n")
     if really_continue != "yes":
         sys.exit(0)
-    pubtator_elasticsearch.build_index(pubtator_path=Path(cfg.pubtator),
+    pubtator_elasticsearch.build_index(pubtator_path=Path(cfg.local_pubtator),
                                        n_processes=cfg.n_processes,
-                                       masked_types=cfg.masking.mask_types,
+                                       masked_types=cfg.type.entity_to_mask,
                                        entity_marker=cfg.entities.entity_marker)
-
-
-if __name__ == '__main__':
-    rebuild_pubtator_index()
-

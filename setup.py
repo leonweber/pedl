@@ -19,10 +19,11 @@ setup(
     entry_points={"console_scripts": ["pedl-summarize=pedl.summarize:summarize",
                                       "pedl-rebuild_pubtator_index=pedl.rebuild_pubtator_index:rebuild_pubtator_index",
                                       "pedl-build_training_set=pedl.build_training_set:build_training_set",
-                                      "pedl-predict=pedl.predict:predict"]},
-    package_data={"pedl": ["data/*", 'configs/*',
+                                      "pedl-extract=pedl.predict:predict"]},
+    package_data={"pedl": ["data/*",
+                           'configs/*',
                            'configs/database/*',
                            'configs/entities/*',
-                           'configs/masking/*',
-                           'configs/type/*']}
+                           'configs/type/*',
+                           'configs/hydra/help/*']}
 )
