@@ -14,8 +14,8 @@ pip install pedl
 ```
 
 ## Usage
-PEDL supports two commands `pedl predict` and `pedl summarize`. The default workflow is to first
-`predict` associations for one or more protein pairs of interest, which will store the results
+PEDL supports two commands `pedl extract` and `pedl summarize`. The default workflow is to first
+`extract` associations for one or more protein pairs of interest, which will store the results
 for each pair in a separate file.
 The contents of these files can then be aggregated into a single csv-file with `summarize`.
 
@@ -25,11 +25,11 @@ These can be looked up via standard webinterfaces like
 [NCBI Gene](https://www.ncbi.nlm.nih.gov/gene).
 
 
-### predict
+### extract
 
 * #### Interactions between single proteins
     ```bash
-    pedl predict --p1 CD274 --p2 CMTM6 --out PEDL_predictions
+    pedl extract --p1 CD274 --p2 CMTM6 --out PEDL_predictions
     ```
   Results:
   ```bash
@@ -42,14 +42,14 @@ These can be looked up via standard webinterfaces like
 
 * #### Pairwise interactions between multiple proteins
   ```bash
-  pedl predict --p1 CMTM6 --p2  54918 920  --out PEDL_predictions
+  pedl extract --p1 CMTM6 --p2  54918 920  --out PEDL_predictions
   ```
   searches for interactions between CMTM6 and 54918, and for interactions between CMTM6 and 920
 
 
 * #### Read protein lists from files
   ```bash
-  pedl predict --p1 proteins.txt --p2  54918 920  --out PEDL_predictions
+  pedl extract --p1 proteins.txt --p2  54918 920  --out PEDL_predictions
   ```
   searches for interactions between the proteins in `proteins.txt` and 54918, as well as interactions between proteins in `proteins.txt` and 920
   
@@ -58,7 +58,7 @@ These can be looked up via standard webinterfaces like
   If you want PEDL to read text snippets that span multiple sentences, use
   `--multi_sentence`. Note, that this may slow down reading by a lot if you are not using a GPU.
   ```bash
-    pedl predict --p1 CD274 --p2 CMTM6 --out PEDL_predictions --multi_sentence
+    pedl extract --p1 CD274 --p2 CMTM6 --out PEDL_predictions --multi_sentence
   ```
   
 
@@ -68,7 +68,7 @@ These can be looked up via standard webinterfaces like
   via homology classes defined by the [Alliance of Genome Resources](http://www.informatics.jax.org/homology.shtml):
   
     ```bash
-    pedl predict --p1 29126 --p2 54918 --out PEDL_predictions --expand_species mouse zebrafish
+    pedl extract --p1 29126 --p2 54918 --out PEDL_predictions --expand_species mouse zebrafish
     ```
     would also include interactions in mouse and zebrafish.
 
@@ -77,12 +77,12 @@ These can be looked up via standard webinterfaces like
   of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
   Unpack the PubTatorCentral files and point PEDL towards the files:
     ```bash
-    pedl predict --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions --pubtator [PATH_TO_PUBTATOR]
+    pedl extract --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions --pubtator [PATH_TO_PUBTATOR]
     ```
 
   In this case, it is also strongly advised to use a CUDA-compatible GPU to speed up the machine reading:
     ```bash
-    pedl predict --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions
+    pedl extract --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions
       --pubtator [PATH_TO_PUBTATOR]--device cuda
     ```
   
