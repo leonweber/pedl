@@ -473,9 +473,9 @@ def get_hgnc_symbol_to_gene_id():
 
 
 def get_mesh_id_to_chem_name():
-    resp = urlopen("http://ctdbase.org/reports/CTD_chemicals.tsv.gz")
+    resp = cached_path("http://ctdbase.org/reports/CTD_chemicals.tsv.gz", cache_dir=cache_root)
     mesh_id_to_chem_name = {}
-    with gzip.open(BytesIO(resp.read())) as f:
+    with gzip.open(resp) as f:
         lines = f.readlines()
         for line in lines:
             fields = line.decode('utf-8').strip().split("\t")

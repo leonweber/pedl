@@ -325,7 +325,8 @@ class DataGetterAPI(DataGetter):
         cached_pmids = [i for i in pmids if i in self._document_cache]
 
         for pmid_chunk in chunks(cached_pmids, self.CHUNK_SIZE):
-            pbar.update(len(pmid_chunk))
+            if pbar:
+                pbar.update(len(pmid_chunk))
             yield [self._document_cache[i] for i in pmid_chunk]
 
         uncached_pmids = [i for i in pmids if i not in cached_pmids]
