@@ -11,6 +11,12 @@ defaults:
   - type: protein_protein
   - override hydra/help: rebuild_pubtator_index_help
 
-local_pubtator: ???
+pubtator_file: ???
+
+elastic_search_server: ""
 #e.g. localhost:9200
 n_processes: 1
+
+password: False
+
+ca_certs: False

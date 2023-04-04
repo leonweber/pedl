@@ -20,7 +20,7 @@ e2: ???
 
 use_ids: False
 #if you want to use ids instead of names
-local_pubtator: ""
+elastic_search_server: ""
 #e.g. localhost:9200
 device: cpu
 #topk: False

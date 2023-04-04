@@ -226,8 +226,12 @@ class DataGetterAPI(DataGetter):
         """
         if "identifier" in annotation.infons:
             identifiers = annotation.infons["identifier"]
+            if not identifiers:
+                identifiers = ""
         elif "Identifier" in annotation.infons:
             identifiers = annotation.infons["Identifier"]
+            if not identifiers:
+                identifiers = ""
         else:
             identifiers = ""
 

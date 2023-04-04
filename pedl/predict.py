@@ -59,7 +59,7 @@ def predict(cfg: DictConfig):
     processed_pairs = get_processed_pairs(Path(cfg.out))
 
     geneid_to_name = get_geneid_to_name()
-    if len(heads) * len(tails) > 100 and not cfg.local_pubtator:
+    if len(heads) * len(tails) > 100 and not cfg.elastic_search_server:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
@@ -69,8 +69,8 @@ def predict(cfg: DictConfig):
         else:
             cfg.device = "cpu"
 
-    if cfg.local_pubtator:
-        data_getter = DataGetterPubtator(address=cfg.local_pubtator,
+    if cfg.elastic_search_server:
+        data_getter = DataGetterPubtator(address=cfg.elastic_search_server,
                                          entity_marker=cfg.entities.entity_marker
                                          )
     else:

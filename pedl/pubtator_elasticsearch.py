@@ -131,13 +131,23 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, ent
         q.put(actions)
 
 
-def build_index(pubtator_path, n_processes, masked_types=None, entity_marker: dict = None):
+def build_index(pubtator_file, n_processes, elastic_search_server, masked_types=None, entity_marker: dict = None,
+                password: str = False, ca_certs: str = False):
 
     n_processes = n_processes or mp.cpu_count()
-    client = Elasticsearch(timeout=3000)
+    if password and ca_certs:
+        client = Elasticsearch(elastic_search_server,
+                               timeout=3000,
+                               basic_auth=("elastic", password),
+                               ca_certs=ca_certs)
+    elif elastic_search_server:
+        client = Elasticsearch(elastic_search_server,
+                               timeout=3000,)
+    else:
+        client = Elasticsearch(timeout=3000,)
 
-    if client.indices.exists(INDEX_NAME):
-        client.indices.delete(INDEX_NAME)
+    if client.indices.exists(index=INDEX_NAME):
+        client.indices.delete(index=INDEX_NAME)
 
     client.indices.create(
         index=INDEX_NAME,
@@ -159,7 +169,7 @@ def build_index(pubtator_path, n_processes, masked_types=None, entity_marker: di
 
     ctx = mp.get_context()
     q = ctx.Queue(maxsize=10)
-    files = list(pubtator_path.glob("*bioc.xml"))
+    files = list(pubtator_file.glob("*BioC.XML"))
     processes = []
     for file_chunk in chunks(files, len(files) // n_processes - 1):
         p = ctx.Process(
