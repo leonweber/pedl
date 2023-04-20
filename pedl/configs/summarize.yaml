@@ -11,18 +11,11 @@ defaults:
   - entities: default
   - override hydra/help: excel_summarize_help
 
-input: ???
-# extracted outputs
+input: ??? # path to input files
+output: ??? # output filename
 
-out: "output"
-#output filename
-cutoff: 0.5
-#higher confidence than cutoff is extracted
-no_association_type: False
-#ignore relation type (head and tail only)
-top_k_articles: 5
-#number of k article per pair (relation)
-entity_set: null
-# subset deren relationen zu allen anderen proteinen summarized werden sollen
-mesh_terms: null
-#filter pubmed ids with the given mesh terms
+cutoff: 0.5 # higher confidence than cutoff is extracted
+no_association_type: False # ignore relation type (head and tail only)
+top_k_articles: 5 # number of k article per pair (relation)
+entity_set: null # Subset of entities whose relations with all other entities will be summarized
+mesh_terms: null # Filter PubMed IDs using the specified MeSH terms

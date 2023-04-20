@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 import random
 
+from lxml import etree
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -15,60 +16,55 @@ import numpy as np
 import requests
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from omegaconf import DictConfig
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import hydra
+from Bio import Entrez
 
 np.random.seed(42)
 random.seed(42)
 
-ESEARCH_MAX_COUNT = 100000
+ESEARCH_MAX_COUNT = 100
 
 
-def get_pmid_to_mesh_terms(mesh_terms: Set[str]) -> Dict[str, List[str]]:
+def get_pmid_to_mesh_terms(pmids: Set[str], mesh_terms: Set[str]) -> Dict[str, List[str]]:
+    """
+    Get a mapping of PubMed IDs to their associated MeSH terms.
+
+    This function retrieves MeSH terms for a given set of PubMed IDs (pmids) by querying the PubMed database.
+    It then filters the MeSH terms based on a provided set of terms (mesh_terms) and returns a dictionary
+    mapping each PubMed ID to a list of its associated MeSH terms.
+
+    Args:
+    pmids (Set[str]): A set of unique PubMed IDs for which MeSH terms are to be fetched.
+    mesh_terms (Set[str]): A set of MeSH terms to filter the results by.
+
+    Returns:
+    Dict[str, List[str]]: A dictionary mapping each PubMed ID (key) to a list of its associated MeSH terms (value).
+
+    Examples:
+    >>> pmids = {"12345678", "23456789"}
+    >>> mesh_terms = {"Disease", "Therapeutics"}
+    >>> get_pmid_to_mesh_terms(pmids, mesh_terms)
+    {'12345678': ['Disease'], '23456789': ['Therapeutics']}
+    """
     pmid_to_mesh_terms = defaultdict(list)
-    base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
-    for mesh_term in mesh_terms:
-        n_processed = 0
-        result = requests.get(
-            base_url,
-            params={
-                "db": "pubmed",
-                "term": f"{mesh_term}[MESH]",
-                "tool": "PEDL",
-                "email": "weberple@hu-berlin.de",
-                "retmode": "json",
-                "retmax": ESEARCH_MAX_COUNT,
-            },
-        )
-        total_count = int(result.json()["esearchresult"]["count"])
-        if total_count == 0:
-            print(
-                f"PubMed search for {mesh_term}[MESH] did not yield any articles. Is this really a valid mesh term?"
-            )
-        n_processed += len(result.json()["esearchresult"]["idlist"])
-        for pmid in result.json()["esearchresult"]["idlist"]:
-            pmid_to_mesh_terms[pmid].append(mesh_term)
+    pmids_list = list(pmids)
+    for i in trange(0, len(pmids_list), ESEARCH_MAX_COUNT, desc="Fetching MeSH terms"):
+        batch_pmids = pmids_list[i:i + ESEARCH_MAX_COUNT]
+        pmids_str = ",".join(batch_pmids)
 
-        # TODO hotfix for now, but this should be fixed properly
-        total_count = min(total_count, 9998)
+        Entrez.email = "leonweber@cis.lmu.de"
+        Entrez.tool = "PEDL"
+        handle = Entrez.efetch(db="pubmed", id=pmids_str, retmode="xml")
+        tree = etree.parse(handle)
 
-        while n_processed < total_count:
-            result = requests.get(
-                base_url,
-                params={
-                    "db": "pubmed",
-                    "term": f"{mesh_term}[MESH]",
-                    "tool": "PEDL",
-                    "email": "weberple@hu-berlin.de",
-                    "retmode": "json",
-                    "retmax": ESEARCH_MAX_COUNT,
-                    "retstart": n_processed,
-                },
-            )
-            n_processed += len(result.json()["esearchresult"]["idlist"])
-            for pmid in result.json()["esearchresult"]["idlist"]:
-                pmid_to_mesh_terms[pmid].append(mesh_term)
+        for article in tree.xpath("//PubmedArticle"):
+            pmid = article.xpath("MedlineCitation/PMID")[0].text
+            mesh_terms_pmid = set(article.xpath("MedlineCitation/MeshHeadingList/MeshHeading/DescriptorName/text()"))
+            mesh_terms_pmid = mesh_terms_pmid.intersection(mesh_terms)  # TODO We might change this to also match subterms
+
+            pmid_to_mesh_terms[pmid] = sorted(mesh_terms_pmid)
 
     return pmid_to_mesh_terms
 
@@ -177,7 +173,7 @@ def fill_sheet_from_df(
                     if float(score) < threshold or ppa_type != row["association type"]:
                         continue
 
-                    if pmid_to_mesh_terms and pmid not in pmid_to_mesh_terms:
+                    if pmid_to_mesh_terms and not pmid_to_mesh_terms[pmid]:
                         continue
 
                     ppa_data["pmid_to_score"][pmid] += float(score)
@@ -311,12 +307,14 @@ def build_summary_table(
 
 
 def summarize_excel(cfg):
+    df_summary = build_summary_table(raw_dir=Path(cfg.input), score_cutoff=cfg.cutoff)
+    all_pmids = set()
+    for pmids_rel in df_summary["pmids"]:
+        all_pmids.update(pmids_rel.split(","))
     if cfg.mesh_terms:
-        pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(cfg.mesh_terms))
+        pmid_to_mesh_terms = get_pmid_to_mesh_terms(all_pmids, set(cfg.mesh_terms))
     else:
         pmid_to_mesh_terms = None
-
-    df_summary = build_summary_table(raw_dir=Path(cfg.input), score_cutoff=cfg.cutoff)
 
     wb = Workbook()
     sheet = wb.active
@@ -359,10 +357,14 @@ def summarize_excel(cfg):
 
         _add_summary_sheet(df_summary, sheet, wb)
 
-    output_file = Path(cfg.out).with_suffix(".xlsx")
+    output_file = Path(cfg.output).with_suffix(".xlsx")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_file)
 
 
 @hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
     summarize_excel(cfg)
+
+if __name__ == "__main__":
+    summarize()
