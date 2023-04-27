@@ -7,14 +7,13 @@ worker_id: 0
 local_model: False
 max_sequence_length: 512
 use_cls: False
-use_starts: False
+use_starts: True
 use_ends: False
-entity_embeddings: True
 num_labels: 7
 head_type: Gene
 tail_type: Gene
 entity_to_mask:
-  Gene: 'protein'
+  Gene: 'gene'
 
 label_to_id :
   in-complex-with: 0

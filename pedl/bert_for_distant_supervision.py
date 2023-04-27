@@ -16,7 +16,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
                  use_cls: bool = False,
                  use_starts: bool = False,
                  use_ends: bool = False,
-                 entity_embeddings: bool = True,
                  entity_marker: dict = None,
                  num_label: int = 7,
                  **kwargs):
@@ -28,7 +27,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
         self.use_cls = use_cls
         self.use_starts = use_starts
         self.use_ends = use_ends
-        self.entity_embeddings = entity_embeddings
         self.init_weights()
         if entity_marker:
             self.entity_marker = entity_marker
@@ -44,11 +42,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
             seq_rep_size += 2 * self.bert.config.hidden_size
         if use_ends:
             seq_rep_size += 2 * self.bert.config.hidden_size
-        if entity_embeddings:
-            seq_rep_size += 2 * self.bert.config.hidden_size
-        else:
-            self.entity_embeddings = None
-            self.entity_to_embedding_index = None
         self.classifier = nn.Linear(seq_rep_size, self.num_labels)
 
     def forward(self, input_ids, attention_mask, use_max=False, **kwargs):
@@ -84,20 +77,6 @@ class BertForDistantSupervision(BertPreTrainedModel):
             tail_end_rep = seq_emb[tail_end_idx]
             end_pair_rep = torch.cat([head_end_rep, tail_end_rep], dim=1)
             seq_reps.append(end_pair_rep)
-
-        # ist das entity_embedings
-        if self.entity_embeddings:
-            e1_mask = (input_ids == self.config.e1_id).long()
-            e2_mask = (input_ids == self.config.e2_id).long()
-            e1_idx = e1_mask.argmax(dim=1)
-            e2_idx = e2_mask.argmax(dim=1)
-            e1_idx[e1_mask.sum(dim=1) == 0] = 0 # default to [CLS] if entity was truncated
-            e2_idx[e2_mask.sum(dim=1) == 0] = 0 # default to [CLS] if entity was truncated
-            e1_embs = seq_emb[torch.arange(len(e1_idx)), e1_idx]
-            e2_embs = seq_emb[torch.arange(len(e2_idx)), e2_idx]
-            seq_emb = torch.cat([e1_embs, e2_embs], dim=1)
-            seq_reps.append(seq_emb)
-
 
         seq_reps = torch.cat(seq_reps, dim=1)
         seq_emb = self.dropout(seq_reps)

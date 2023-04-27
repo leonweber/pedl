@@ -52,12 +52,12 @@ class PEDLDataset(Dataset):
             {
                 "additional_special_tokens": list(entity_marker.values())
             })
-        if entity_to_mask:
-            self.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
-                }
-            )
+        # if entity_to_mask:
+            # self.tokenizer.add_special_tokens(
+            #     {
+            #         "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
+            #     }
+            # )
 
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter

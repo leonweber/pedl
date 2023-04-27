@@ -86,9 +86,14 @@ def predict(cfg: DictConfig):
                                     entity_to_mask=cfg.type.entity_to_mask,
                                     entity_marker=cfg.entities.entity_marker
                                     )
+    if cfg.skip_processed:
+        skip_pairs = processed_pairs
+    else:
+        skip_pairs = {}
+
     dataset = PEDLDataset(heads=heads,
                           tails=tails,
-                          skip_pairs=processed_pairs,
+                          skip_pairs=skip_pairs,
                           base_model=cfg.type.model_name,
                           data_getter=data_getter,
                           sentence_max_length=500,
@@ -104,7 +109,6 @@ def predict(cfg: DictConfig):
                                                       use_cls=cfg.type.use_cls,
                                                       use_starts=cfg.type.use_starts,
                                                       use_ends=cfg.type.use_ends,
-                                                      entity_embeddings=cfg.type.entity_embeddings,
                                                       num_label=cfg.type.num_labels)
     if "cuda" in cfg.device:
         model.bert = nn.DataParallel(model.bert)
@@ -171,3 +175,7 @@ def get_entity_list(entity, normalized_entity_ids):
     else:
         p1s = [str(e) for e in entity]
     return p1s
+
+
+if __name__ == "__main__":
+    predict()

@@ -403,71 +403,45 @@ class DataGetterAPI(DataGetter):
         ):
             return None  # is multi sentence
 
-        offsets = []
-        lengths = []
-        entity_to_offset_idx = defaultdict(list)
-        offset_idx_p1 = None
-        offset_idx_p2 = None
+        text = passage.text[snippet_start:snippet_end]
+        span_to_replacement = {}
+        span_to_replacement_masked = {}
+        masked_count = 0
+        entity_to_spans = defaultdict(list)
         for ann in passage.annotations:
             for loc in ann.locations:
                 if snippet_end >= loc.offset - passage.offset >= snippet_start:
-                    offset_idx = len(offsets)
                     entities = self.get_entities_from_annotation(ann, self.homologue_mapping)
+
+                    start = loc.offset - passage.offset - snippet_start
+                    end = loc.end - passage.offset - snippet_start
                     for entity in entities:
-                        entity_to_offset_idx[entity].append(len(offsets))
+                        entity_to_spans[entity].append((start, end))
 
-                    offsets.append(loc.offset - passage.offset)
-                    lengths.append(loc.length)
+        for entity, spans in entity_to_spans.items():
+            masked_count += 1
+            for start, end in spans:
+                ent_text = text[start:end]
+                if entity.type in self.entity_to_mask:
+                    replacement_masked = f"<{self.entity_to_mask[entity.type]}{masked_count}/>"
+                else:
+                    replacement_masked = ent_text
+                replacement = ent_text
 
-                    if loc.offset - passage.offset == offset_ent1:
-                        offset_idx_p1 = offset_idx
-                    if loc.offset - passage.offset == offset_ent2:
-                        offset_idx_p2 = offset_idx
+                if start == offset_ent1 - snippet_start:
+                    replacement = f"{self.entity_marker['head_start']}{replacement}{self.entity_marker['head_end']}"
+                    replacement_masked = f"{self.entity_marker['head_start']}{replacement_masked}{self.entity_marker['head_end']}"
 
-        if offset_idx_p1 is None or offset_idx_p2 is None:
-            # Weird encoding error
-            return None
+                if start == offset_ent2 - snippet_start:
+                    replacement = f"{self.entity_marker['tail_start']}{replacement}{self.entity_marker['tail_end']}"
+                    replacement_masked = f"{self.entity_marker['tail_start']}{replacement_masked}{self.entity_marker['tail_end']}"
+                span_to_replacement[(start, end)] = replacement
+                span_to_replacement_masked[(start, end)] = replacement_masked
 
-        offsets = np.array(offsets)
-        text = passage.text[snippet_start:snippet_end]
-        offsets -= snippet_start
+        text_marked = replace_consistently_dict(text, span_to_replacement)
+        text_masked = replace_consistently_dict(text, span_to_replacement_masked)
 
-        text_ent1 = passage.text[offset_ent1: offset_ent1 + len_ent1]
-        text, offsets = replace_consistently(
-            offset=offsets[offset_idx_p1],
-            length=lengths[offset_idx_p1],
-            replacement=f"{self.entity_marker['head_start']}{text_ent1}{self.entity_marker['head_end']}",
-            text=text,
-            offsets=offsets,
-        )
-        offsets[offset_idx_p1] += len(self.entity_marker['head_start'])
+        if self.entity_marker['head_start'] not in text_marked or self.entity_marker['head_end'] not in text_marked:
+            return None # Weird encoding error
 
-        text_ent2 = passage.text[offset_ent2: offset_ent2 + len_ent2]
-        text, offsets = replace_consistently(
-            offset=offsets[offset_idx_p2],
-            length=lengths[offset_idx_p2],
-            replacement=f"{self.entity_marker['tail_start']}{text_ent2}{self.entity_marker['tail_end']}",
-            text=text,
-            offsets=offsets,
-        )
-        offsets[offset_idx_p2] += len(self.entity_marker['tail_start'])
-
-        masked_indices = set()
-        blinded_text = text
-        for i, (entity, idcs) in enumerate(entity_to_offset_idx.items(), start=1):
-            if entity.type not in self.entity_to_mask:
-                continue
-
-            masking_type = self.entity_to_mask[entity.type]
-            for idx in idcs:
-                if idx not in masked_indices:
-                    blinded_text, offsets = replace_consistently(
-                        offset=offsets[idx],
-                        length=lengths[idx],
-                        replacement=f"<{masking_type}{i}/>",
-                        text=blinded_text,
-                        offsets=offsets,
-                    )
-                    masked_indices.add(idx)
-
-        return Sentence(pmid=pmid, text=text, text_blinded=blinded_text, start_pos=snippet_start, entity_marker=self.entity_marker)
+        return Sentence(pmid=pmid, text=text_marked, text_blinded=text_masked, start_pos=snippet_start, entity_marker=self.entity_marker)

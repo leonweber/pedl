@@ -30,6 +30,7 @@ max_bag_size: 1000
 #number mention pairs
 verbose: False
 #extend logging information
+skip_processed: False # whether to skip already processed pairs
 
 out: "./PEDL_predictions"
 #output folder

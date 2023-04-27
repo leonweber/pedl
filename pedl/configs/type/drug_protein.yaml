@@ -9,7 +9,6 @@ max_sequence_length: 512
 use_cls: True
 use_starts: False
 use_ends: False
-entity_embeddings: False
 num_labels: 14
 head_type: Chemical
 tail_type: Gene
