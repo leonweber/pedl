@@ -7,15 +7,12 @@ work_dir: ${hydra:runtime.cwd}
 defaults:
   - database: default
   - entities: default
+  - elastic: default
   - override hydra/help: build_training_set_help
 
 out: ""
 out_blinded: ""
 expand_species: null
 triples: ???
-pubtator:  ""
-#e.g. localhost:4243
-chemprot: true
 
-n_worker: 1
-worker_id: 0
+max_size: 1000

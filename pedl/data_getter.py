@@ -11,11 +11,12 @@ import numpy as np
 import requests
 from elasticsearch import Elasticsearch
 from lxml import etree
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from pedl.utils import get_homologue_mapping, cache_root, SegtokSentenceSplitter, \
     cached_path, unpack_file, chunks, Entity, Sentence, get_pmid, \
-    replace_consistently, replace_consistently_dict, doc_synced
+    replace_consistently_dict, doc_synced
 
 
 class DataGetter(abc.ABC):
@@ -27,11 +28,17 @@ class DataGetter(abc.ABC):
 
 class DataGetterPubtator(DataGetter):
 
-    def __init__(self, address: str, entity_marker: dict = None, ):
+    def __init__(self, elasticsearch, entity_marker: dict = None, entity_to_mask: dict = None,
+                 max_size: int = 1000):
         # TODO check whether elastic search is running with pubtator index
-        host, port = address.split(":")
+        host, port = elasticsearch.server.split(":")
         self.types_to_blind = {"gene"}
-        self.client = Elasticsearch(hosts=[{"host": host, "port": port}], timeout=3000)
+        self.client = Elasticsearch(hosts=[{"host": host,
+                                            "port": int(port),
+                                            "scheme": "https",
+                                            }], timeout=3000,
+                                    basic_auth=("elastic", elasticsearch.password),
+                                    ca_certs=elasticsearch.ca_certs)
         if entity_marker:
             self.et = entity_marker
         else:
@@ -39,6 +46,9 @@ class DataGetterPubtator(DataGetter):
                        "head_end": '</e1>',
                        "tail_start": '<e2>',
                        "tail_end": '</e2>'}
+
+        self.entity_to_mask = entity_to_mask
+        self.max_size = max_size
 
     def get_sentences(self, head: Entity, tail: Entity):
         processed_sentences = []
@@ -50,7 +60,7 @@ class DataGetterPubtator(DataGetter):
                 ]
             }
         }
-        result = self.client.search(query=query, index="pubtator_masked", size=1000)
+        result = self.client.search(query=query, index="pubtator_masked", size=self.max_size)
         retrieved_sentences = result["hits"]["hits"]
         for sentence in retrieved_sentences:
             sentence = sentence["_source"]
@@ -71,7 +81,7 @@ class DataGetterPubtator(DataGetter):
                         tuple(span_tail): self.et['tail_start'] + text_orig[span_tail[0]:span_tail[-1]]
                         + self.et['tail_end'],
                     }
-                    text = replace_consistently_dict(text=text_orig, span_to_replacement=span_to_replacement)
+                    text, _ = replace_consistently_dict(text=text_orig, span_to_replacement=span_to_replacement)
 
                     span_head_masked = spans_head_masked[idx_head]
                     span_tail_masked = spans_tail_masked[idx_tail]
@@ -82,7 +92,7 @@ class DataGetterPubtator(DataGetter):
                         tuple(
                             span_tail_masked): self.et['tail_start'] + text_orig_masked[span_tail_masked[0]:span_tail_masked[1]] + self.et['tail_end'],
                     }
-                    text_masked = replace_consistently_dict(text=text_orig_masked,
+                    text_masked, _ = replace_consistently_dict(text=text_orig_masked,
                                                             span_to_replacement=span_to_replacement)
 
                     processed_sentences.append(
@@ -438,8 +448,8 @@ class DataGetterAPI(DataGetter):
                 span_to_replacement[(start, end)] = replacement
                 span_to_replacement_masked[(start, end)] = replacement_masked
 
-        text_marked = replace_consistently_dict(text, span_to_replacement)
-        text_masked = replace_consistently_dict(text, span_to_replacement_masked)
+        text_marked, _ = replace_consistently_dict(text, span_to_replacement)
+        text_masked, _ = replace_consistently_dict(text, span_to_replacement_masked)
 
         if self.entity_marker['head_start'] not in text_marked or self.entity_marker['head_end'] not in text_marked:
             return None # Weird encoding error

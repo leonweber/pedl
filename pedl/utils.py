@@ -1,4 +1,5 @@
 import gzip
+import itertools
 import json
 import logging
 import os
@@ -307,12 +308,14 @@ def replace_consistently(offset, length, replacement, text, offsets):
     return new_text, new_offsets
 
 
-def insert_consistently(offset, insertion, text, starts, ends):
+def insert_consistently(offset, insertion, text, starts, ends, idx_changed):
     new_text = text[:offset] + insertion + text[offset:]
     new_starts = starts.copy()
     new_ends = ends.copy()
-    new_starts[starts >= offset] += len(insertion)
-    new_ends[ends >= offset] += len(insertion)
+    not_idx_changed_mask = np.ones(len(starts), dtype=bool)
+    not_idx_changed_mask[idx_changed] = False
+    new_starts[(starts >= offset) & not_idx_changed_mask] += len(insertion)
+    new_ends[ends > offset] += len(insertion)
 
     return new_text, new_starts, new_ends
 
@@ -331,20 +334,34 @@ def delete_consistently(from_idx, to_idx , text, starts, ends):
 
 
 def replace_consistently_dict(text, span_to_replacement):
-    offsets = list(span_to_replacement)
-    replacements = [span_to_replacement[i] for i in offsets]
+    old_offset_to_new = {}
+    current_offset = 0
+    new_text = ""
 
-    starts = np.array([i[0] for i in offsets])
-    ends = np.array([i[1] for i in offsets])
+    # Sort spans by starting index
+    sorted_spans = sorted(span_to_replacement.items(), key=lambda x: x[0][0])
 
-    for i, replacement in enumerate(replacements):
-        text, starts, ends = delete_consistently(from_idx=starts[i],
-                                                 to_idx=ends[i], starts=starts,
-                                                 ends=ends, text=text)
-        text, starts, ends = insert_consistently(offset=starts[i], insertion=replacement,
-                                                 starts=starts, ends=ends, text=text)
+    for (start, end), substitution in sorted_spans:
+        # Add the text before the current span
+        new_text += text[current_offset:start]
 
-    return text
+        # Add the substitution and update the new offsets
+        old_offset_to_new[(start, end)] = (len(new_text),  len(substitution) + len(new_text))
+        new_text += substitution
+
+        # Update the current offset
+        current_offset = end
+
+    # Add the remaining text
+    new_text += text[current_offset:]
+
+    # check results
+    for (start, end), (new_start, new_end) in old_offset_to_new.items():
+        assert new_text[new_start:new_end] == span_to_replacement[(start, end)]
+
+    return new_text, old_offset_to_new
+
+
 
 
 def get_homologue_mapping(

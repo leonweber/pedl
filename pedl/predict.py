@@ -59,7 +59,7 @@ def predict(cfg: DictConfig):
     processed_pairs = get_processed_pairs(Path(cfg.out))
 
     geneid_to_name = get_geneid_to_name()
-    if len(heads) * len(tails) > 100 and not cfg.elastic_search_server:
+    if len(heads) * len(tails) > 100 and not cfg.elasticsearch.server:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
@@ -69,9 +69,10 @@ def predict(cfg: DictConfig):
         else:
             cfg.device = "cpu"
 
-    if cfg.elastic_search_server:
-        data_getter = DataGetterPubtator(address=cfg.elastic_search_server,
-                                         entity_marker=cfg.entities.entity_marker
+    if cfg.elastic.server:
+        data_getter = DataGetterPubtator(elasticsearch=cfg.elastic,
+                                         entity_marker=cfg.entities.entity_marker,
+                                         entity_to_mask=cfg.type.entity_to_mask,
                                          )
     else:
         if cfg.type.head_type == cfg.type.tail_type:
@@ -119,8 +120,10 @@ def predict(cfg: DictConfig):
 
     os.makedirs(cfg.out, exist_ok=True)
 
-    dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=cfg.type.batch_size,
-                            collate_fn=model.collate_fn, prefetch_factor=100)
+    #dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=cfg.type.batch_size,
+                            #collate_fn=model.collate_fn, prefetch_factor=100)
+    dataloader = DataLoader(dataset, num_workers=0, batch_size=cfg.type.batch_size,
+    collate_fn=model.collate_fn)
     with (Path(cfg.out) / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader):
             head, tail = datapoint["pair"]
