@@ -119,6 +119,11 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, ent
                         }
                         while entity[0][0] < sentence.end_pos:
                             if entity[0][0] - sentence.start_pos < 0:
+                                if len(entities_passage) == 0:
+                                    entity = None
+                                    break
+                                else:
+                                    entity = entities_passage.pop()
                                 continue
 
                             if entity[1].type.lower() in elastic_doc:

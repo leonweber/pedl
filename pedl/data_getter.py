@@ -332,7 +332,7 @@ class DataGetterAPI(DataGetter):
         pmids = list(pmids)
 
         if len(pmids) > self.CHUNK_SIZE:
-            pbar = tqdm(desc="Reading", total=len(pmids))
+            pbar = tqdm(desc="Collecting", total=len(pmids))
         else:
             pbar = None
 

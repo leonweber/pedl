@@ -59,7 +59,7 @@ def predict(cfg: DictConfig):
     processed_pairs = get_processed_pairs(Path(cfg.out))
 
     geneid_to_name = get_geneid_to_name()
-    if len(heads) * len(tails) > 100 and not cfg.elasticsearch.server:
+    if len(heads) * len(tails) > 100 and not cfg.elastic.server:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
@@ -120,12 +120,10 @@ def predict(cfg: DictConfig):
 
     os.makedirs(cfg.out, exist_ok=True)
 
-    #dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=cfg.type.batch_size,
-                            #collate_fn=model.collate_fn, prefetch_factor=100)
-    dataloader = DataLoader(dataset, num_workers=0, batch_size=cfg.type.batch_size,
-    collate_fn=model.collate_fn)
+    dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=cfg.type.batch_size,
+                            collate_fn=model.collate_fn, prefetch_factor=100)
     with (Path(cfg.out) / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
-        for datapoint in tqdm(dataloader):
+        for datapoint in tqdm(dataloader, desc="Reading"):
             head, tail = datapoint["pair"]
             if "sentences" not in datapoint:
                 f_pairs_processed.write(f"{head}\t{tail}\n")
@@ -134,7 +132,7 @@ def predict(cfg: DictConfig):
             name1 = geneid_to_name.get(head.cuid, head.cuid)
             name2 = geneid_to_name.get(tail.cuid, tail.cuid)
 
-            file_out = Path(cfg.out) / f"{name1}_{name2}.txt"
+            file_out = Path(cfg.out) / f"{name1}-_-{name2}.txt"
 
             if head == tail:
                 f_pairs_processed.write(f"{head}\t{tail}\n")

@@ -252,7 +252,7 @@ def _add_summary_sheet(df_summary, sheet, wb):
 
 
 def build_summary_table(
-    raw_dir: Path, score_cutoff: float = 0.0, no_association_type: bool = False
+    raw_dir: Path, threshold: float = 0.0, no_association_type: bool = False
 ) -> pd.DataFrame:
     df = {
         "head": [],
@@ -284,7 +284,7 @@ def build_summary_table(
                         rel = (p1_unified, "association", p2_unified)
                     else:
                         rel = (p1, fields[0], p2)
-                    if float(fields[1]) >= score_cutoff:
+                    if float(fields[1]) >= threshold:
                         rel_to_score_sum[rel] += float(fields[1])
                         rel_to_num_found[rel] += 1
                         rel_to_score_max[rel] = max(
@@ -307,7 +307,7 @@ def build_summary_table(
 
 
 def summarize_excel(cfg):
-    df_summary = build_summary_table(raw_dir=Path(cfg.input), score_cutoff=cfg.cutoff)
+    df_summary = build_summary_table(raw_dir=Path(cfg.input), threshold=cfg.threshold)
     all_pmids = set()
     for pmids_rel in df_summary["pmids"]:
         all_pmids.update(pmids_rel.split(","))
@@ -329,7 +329,7 @@ def summarize_excel(cfg):
                 sheet=sheet,
                 df=df_a_to_b,
                 ppa_dir=Path(cfg.input),
-                threshold=cfg.cutoff,
+                threshold=cfg.threshold,
                 top_k_articles=cfg.top_k_articles,
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
             )
@@ -340,7 +340,7 @@ def summarize_excel(cfg):
                 sheet=sheet,
                 df=df_b_to_a,
                 ppa_dir=Path(cfg.input),
-                threshold=cfg.cutoff,
+                threshold=cfg.threshold,
                 top_k_articles=cfg.top_k_articles,
                 pmid_to_mesh_terms=pmid_to_mesh_terms,
             )
@@ -350,7 +350,7 @@ def summarize_excel(cfg):
             sheet=sheet,
             df=df_summary,
             ppa_dir=Path(cfg.input),
-            threshold=cfg.cutoff,
+            threshold=cfg.threshold,
             top_k_articles=cfg.top_k_articles,
             pmid_to_mesh_terms=pmid_to_mesh_terms,
         )
@@ -364,6 +364,7 @@ def summarize_excel(cfg):
 
 @hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
+    print(cfg.mesh_terms)
     summarize_excel(cfg)
 
 if __name__ == "__main__":

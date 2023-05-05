@@ -14,7 +14,7 @@ defaults:
 input: ??? # path to input files
 output: ??? # output filename
 
-cutoff: 0.5 # higher confidence than cutoff is extracted
+threshold: 0.5 # only summarize relations with confidence above threshold
 no_association_type: False # ignore relation type (head and tail only)
 top_k_articles: 5 # number of k article per pair (relation)
 entity_set: null # Subset of entities whose relations with all other entities will be summarized

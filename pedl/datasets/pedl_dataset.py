@@ -12,7 +12,7 @@ from segtok.segmenter import split_single
 from pedl.utils import Entity
 from pedl.data_getter import DataGetterAPI
 
-#logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PEDLDataset(Dataset):
@@ -33,6 +33,8 @@ class PEDLDataset(Dataset):
         entity_marker: dict = None,
         entity_to_mask: dict = None,
         label_to_id: dict = None,
+        use_starts: bool = False,
+        use_ends: bool = False,
     ):
         self.label_to_id = label_to_id
         self.id_to_label = {v: k for k, v in label_to_id.items()}
@@ -73,6 +75,7 @@ class PEDLDataset(Dataset):
         if entity_side_information:
             self.entity_to_side_information = self.get_side_information(entity_side_information)
 
+
     def __len__(self):
         return len(self.heads) * len(self.tails)
 
@@ -90,6 +93,9 @@ class PEDLDataset(Dataset):
 
         if self.sentence_max_length:
             sentences = [s for s in sentences if len(s.text) < self.sentence_max_length]
+
+        # deduplicate sentences
+        sentences = list(set(sentences))
 
         if not sentences:
             return {"pair": (head, tail)}
@@ -109,35 +115,25 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
-        if self.pair_to_side_information or self.entity_to_side_information:
-            encoding = []
-            pair_side_info = self.pair_to_side_information.get((head.infons["identifier"], tail.infons["identifier"]), "")
+        encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
+                                                    truncation=True)
+        filtered_encoding = {k: [] for k in encoding}
+        filtered_sentences = []
+        # move texts with missing entity markers
+        for i, text in enumerate(texts):
+            if (self.entity_marker["head_start"] in text and self.entity_marker["head_end"] in text and
+                    self.entity_marker["tail_start"] in text and self.entity_marker["tail_end"] in text):
+                for k in encoding:
+                    filtered_encoding[k].append(encoding[k][i])
+                filtered_sentences.append(sentences[i])
+            else:
+                logger.warning(f"Missing entity markers in sentence: {sentences[i]}")
 
-            head_side_info = self.entity_to_side_information.get(head.infons["identifier"], "")
-            tail_side_info = self.entity_to_side_information.get(tail.infons["identifier"], "")
-
-            if head_side_info and tail_side_info:
-                head_side_info = split_single(head_side_info)[0]
-                tail_side_info = split_single(tail_side_info)[0]
-
-            side_info = f"{pair_side_info} | {head_side_info} | {tail_side_info} [SEP]"
-            for sentence in texts:
-                features_text = self.tokenizer.encode_plus(
-                    text=sentence, max_length=self.max_length, truncation="longest_first"
-                )
-                len_remaining = self.max_length - len(features_text.input_ids)
-                features_side = self.tokenizer.encode_plus(
-                    side_info, max_length=len_remaining, truncation="longest_first", add_special_tokens=False
-                )
-                encoding.append(features_text.input_ids + features_side.input_ids)
-        else:
-            encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
-                                                        truncation=True)
         sample = {
-            "encoding": encoding,
+            "encoding": filtered_encoding,
             "labels": labels,
             "is_direct": False,
-            "sentences": sentences,
+            "sentences": filtered_sentences,
             "pair": (head, tail)
         }
 

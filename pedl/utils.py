@@ -69,6 +69,12 @@ class Sentence:
             .replace(self.em["tail_end"], "")
         )
 
+    def __hash__(self):
+        return hash((self.pmid, self.text))
+
+    def __eq__(self, other):
+        return (self.pmid, self.text) == (other.pmid, other.text)
+
 
 class SegtokSentenceSplitter:
     def __init__(self, entity_marker: dict = None):

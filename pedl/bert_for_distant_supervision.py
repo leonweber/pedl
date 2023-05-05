@@ -4,6 +4,7 @@ from torch import nn
 import torch
 from transformers import BertPreTrainedModel, AutoModel, BertModel, \
     DataCollatorWithPadding
+from tqdm import tqdm
 
 from pedl.utils import chunks
 
@@ -118,7 +119,7 @@ class BertForDistantSupervision(BertPreTrainedModel):
             return self.forward(input_ids, attention_mask)
 
         indices = torch.arange(len(input_ids))
-        for indices_batch in chunks(indices, batch_size):
+        for indices_batch in tqdm(list(chunks(indices, batch_size))):
             input_ids_batch = input_ids[indices_batch]
             attention_mask_batch = attention_mask[indices_batch]
             logits, meta = self.forward(input_ids=input_ids_batch,
