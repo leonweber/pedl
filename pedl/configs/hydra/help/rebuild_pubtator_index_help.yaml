@@ -17,8 +17,10 @@ template: |-
   == Flags == 
   
   required:
-    local_pubtator  : the address to the local pubtator (e.g. localhost:9200). 
-                      If empty string then no local pubtator is used [str] (default: "")
+    pubtator_file     : path to all PubTatorCentral files [str]
+    elastic.server    : server address to local Elasticsearch server (e.g. https://localhost:9200) [str]
+    elastic.password  : Elasticsearch password [str]
+    elastic.ca_certs  : Path to Elasticsearch certificates [str]
   optional:
     n_processes : number of processes for parallelization [int] (default: 1)
 

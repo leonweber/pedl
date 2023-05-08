@@ -17,10 +17,10 @@ template: |-
   == Flags == 
   
   required:
-    input : path to input relations [str]
+    input   : path to input relations [str]
+    output  : output filename [str] 
   optional:
-    out                 : custom output filename [str] (default: "output")
-    cutoff              : only pairs with higher confidence than cutoff are extracted [double] (default: 0.5)
+    threshold           : only pairs with higher confidence than cutoff are extracted [double] (default: 0.5)
     no_association_type : whether or not to ignore the relation type of a pair [boolean] (default: False)
     top_k_articles      : the number of k articles summarized per relation [int] (default: 5)
     entity_set          : subset of entities. All other extracted relations will be summarized in account 

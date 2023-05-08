@@ -23,14 +23,13 @@ template: |-
             path to a file containing the entities. [str/List/path]
     type  : the type combination of both entities e.g. protein_protein or grug_protein [str]
   optional:
-    local_pubtator  : the address to the local pubtator (e.g. localhost:9200). 
-                      If empty string then no local pubtator is used [str] (default: "")
     device          : the device on which pedl should run [str] (default: "cpu")
     use_ids         : whether or not to use ids or names as entity inputs [boolean] (default: False)
     cutoff          : only pairs with higher confidence than cutoff are extracted [double] (default: 0.01)
     max_bag_size    : the max number of mention pairs [int] (default: 1000)
     verbose         : whether or not to extend the logging information [boolean] (default: False)
     out             : output directory [str] (default: "/PEDL_predictions")
-
+    skip_processed  : whether to skip already processed pairs [boolean] (default: False)
+  
   -------
   ${hydra.help.footer}

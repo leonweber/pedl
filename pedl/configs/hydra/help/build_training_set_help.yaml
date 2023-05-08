@@ -26,10 +26,6 @@ template: |-
     out             : [str] (default: "")
     out_blinded     : [str] (default: "")
     expand_species  : [str] (default: "null")
-    pubtator        : [str] (default: "") e.g. localhost:4243
-    chemprot        : [boolean] (default: True)
-    n_worker        : [int] (default: 1)
-    worker_id       : [int] (default: 0)
   
   == Configuration groups ==
   
