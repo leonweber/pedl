@@ -364,7 +364,6 @@ def summarize_excel(cfg):
 
 @hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
-    print(cfg.mesh_terms)
     summarize_excel(cfg)
 
 if __name__ == "__main__":
