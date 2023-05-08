@@ -24,6 +24,7 @@ setup(
                            'configs/*',
                            'configs/database/*',
                            'configs/entities/*',
+                           'configs/elastic/*',
                            'configs/type/*',
                            'configs/hydra/help/*']}
 )
