@@ -517,6 +517,9 @@ def maybe_mapped_entities(entities, normalized_entity_ids, use_ids=False):
         for entity in entities:
             if re.match(r"^[A-Z]\d+", entity):
                 entity = 'MESH:' + entity
+            else:
+                if not entity.startswith('MESH:'):
+                    entity = entity[0:4].upper() + entity[4:]
             maybe_mapped_entities.append(entity)
     else:
         for entity in entities:
