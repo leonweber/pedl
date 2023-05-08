@@ -88,9 +88,9 @@ Set `type=protein_protein` for protein-protein interactions or `type=drug_protei
   ```
 - With a local PubTator index:
     
-      ```bash
-      pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true pubtator_dir=/home/pedl/output/BioCXML elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> 
-      ```
+  ```bash
+  pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> 
+  ```
 
 #### Read Protein or Drug Lists from Files
 
@@ -117,11 +117,11 @@ pedl-summarize input=PEDL_predictions output=summary
 To filter results by specific MeSH terms, use the `mesh_terms` parameter. Escape special characters with a backslash `\`:
 
 ```bash
-pedl-summarize input=PEDL_predictions output=summary mesh_terms=["Apoptosis","Lymphoma\, B-Cell"]
+pedl-summarize input=PEDL_extractions output=summary mesh_terms=["Apoptosis","Lymphoma\, B-Cell"]
 ```
 
 To only use high-confidence extractions, use the `threshold` parameter:
 
 ```bash
-pedl-summarize input=PEDL_predictions output=summary threshold=0.9
+pedl-summarize input=PEDL_extractions output=summary threshold=0.9
 ```
