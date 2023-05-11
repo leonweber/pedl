@@ -31,7 +31,11 @@ class DataGetterPubtator(DataGetter):
     def __init__(self, elasticsearch, entity_marker: dict = None, entity_to_mask: dict = None,
                  max_size: int = 1000):
         # TODO check whether elastic search is running with pubtator index
-        host, port = elasticsearch.server.split(":")
+        if elasticsearch.server.startswith("https://"):
+            scheme, host, port = elasticsearch.server.split(":")
+            host = host[2:]
+        else:
+            host, port = elasticsearch.server.split(":")
         self.types_to_blind = {"gene"}
         self.client = Elasticsearch(hosts=[{"host": host,
                                             "port": int(port),
