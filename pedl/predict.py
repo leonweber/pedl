@@ -44,10 +44,23 @@ def predict(cfg: DictConfig):
     if cfg.verbose:
         logging.basicConfig(level=logging.INFO)
 
+    e1_is_all = cfg.e1 == "all"
+    e2_is_all = cfg.e2 == "all"
+
     e1s = get_entity_list(cfg.e1, head_id_to_entity)
     e2s = get_entity_list(cfg.e2, tail_id_to_entity)
-    maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, cfg.use_ids)
-    maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, cfg.use_ids)
+
+    if e1_is_all:
+        maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, False)
+    else:
+        maybe_mapped_e1s = maybe_mapped_entities(e1s, head_id_to_entity, cfg.use_ids)
+
+    if e2_is_all:
+        maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, False)
+    else:
+        maybe_mapped_e2s = maybe_mapped_entities(e2s, tail_id_to_entity, cfg.use_ids)
+
+
 
     heads = [Entity(cuid, cfg.type.head_type) for cuid in maybe_mapped_e1s]
     tails = [Entity(cuid, cfg.type.tail_type) for cuid in maybe_mapped_e2s]

@@ -78,7 +78,7 @@ Set `type=protein_protein` for protein-protein interactions or `type=drug_protei
 - Protein-Protein Interaction:
 
   ```bash
-  pedl-extract e1=all e2=CD274 type=protein_protein out=PEDL_extractions use_ids=true
+  pedl-extract e1=all e2=CD274 type=protein_protein out=PEDL_extractions 
   ```
 
 - Drug-Protein Interaction:
