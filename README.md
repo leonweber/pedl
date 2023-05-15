@@ -47,6 +47,7 @@ To extract interactions, you can use either the Entrez gene ID or name for prote
 
 Set `type=protein_protein` for protein-protein interactions or `type=drug_protein` for drug-protein interactions.
 
+
 - Example (Protein-Protein Interaction):
 
   ```bash
@@ -57,6 +58,7 @@ Set `type=protein_protein` for protein-protein interactions or `type=drug_protei
 
   ```bash
   pedl-extract e1=MeSH:D063325 e2=1813 type=drug_protein out=PEDL_extractions use_ids=True
+
   ```
 
 #### Pairwise Interactions Between Multiple Proteins or Drugs
@@ -76,6 +78,43 @@ Set `type=protein_protein` for protein-protein interactions or `type=drug_protei
 #### Pairwise Interactions Between All Proteins or Drugs
 
 - Protein-Protein Interaction:
+
+=======
+    pedl extract --p1 CD274 --p2 CMTM6 --out PEDL_predictions --multi_sentence
+  ```
+  
+
+* #### Search for multiple species at once
+  If the provided gene ids are from human, mouse, rat or zebrafish, PEDL can automatically
+  search for interactions in the other model species (currently human, mouse, rat and zebrafish)
+  via homology classes defined by the [Alliance of Genome Resources](http://www.informatics.jax.org/homology.shtml):
+  
+    ```bash
+    pedl extract --p1 29126 --p2 54918 --out PEDL_predictions --expand_species mouse zebrafish
+    ```
+    would also include interactions in mouse and zebrafish.
+
+* #### Large gene lists
+  If you need to test for more than 100 interactions at once, you have to use a local copy 
+  of PubTatorCentral, which can be downloaded [here](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/).
+  Unpack the PubTatorCentral files and point PEDL towards the files:
+    ```bash
+    pedl extract --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions --pubtator [PATH_TO_PUBTATOR]
+    ```
+
+  In this case, it is also strongly advised to use a CUDA-compatible GPU to speed up the machine reading:
+    ```bash
+    pedl extract --p1 large_protein_list1.txt --p2 large_protein_list2 --out PEDL_predictions
+      --pubtator [PATH_TO_PUBTATOR]--device cuda
+    ```
+  
+### summarize
+Use `summarize` to create a summary file describing all results in a directory.
+By default, PEDL will create the summary CSV next to the results directory.
+```bash
+pedl summarize PEDL_predictions
+```
+Results:
 
   ```bash
   pedl-extract e1=all e2=CD274 type=protein_protein out=PEDL_extractions 
