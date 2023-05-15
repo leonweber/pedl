@@ -7,6 +7,8 @@ PEDL is capable of detecting the following association types:
 - **Protein-Protein**: controls-phosphorylation-of, controls-state-change-of, controls-transport-of, controls-expression-of, in-complex-with, interacts-with, and catalysis-precedes 
 - **Drug-Protein**: antagonist, agonist, agonist-inihibitor, direct-regulator, activator, inhibitor, indirect-downregulator, indirect-upregulator, part-of, product-of, substrate, and substrate\_product-of
 
+For example usage with expected results, see [this notebook](https://github.com/leonweber/pedl/blob/master/example_usage.ipynb).
+
 ## Installation
 
 Install PEDL via pip:
