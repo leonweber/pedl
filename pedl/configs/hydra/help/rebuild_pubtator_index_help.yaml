@@ -1,0 +1,28 @@
+app_name: pedl-rebuild_pubtator_index
+app_tag: rebuild_pubtator_index
+
+header: == ${hydra.help.app_name} ==
+
+footer: |-
+  You can find the detailed description on how to use
+  PEDL here: https://github.com/leonweber/pedl
+
+template: |-
+  ${hydra.help.header}
+  
+  This is ${hydra.help.app_name}
+  You can use ${hydra.help.app_name} as follows: 
+  ${hydra.help.app_name} pubtator=[]
+  
+  == Flags == 
+  
+  required:
+    pubtator_file     : path to all PubTatorCentral files [str]
+    elastic.server    : server address to local Elasticsearch server (e.g. https://localhost:9200) [str]
+    elastic.password  : Elasticsearch password [str]
+    elastic.ca_certs  : Path to Elasticsearch certificates [str]
+  optional:
+    n_processes : number of processes for parallelization [int] (default: 1)
+
+  -------
+  ${hydra.help.footer}

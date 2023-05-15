@@ -1,0 +1,31 @@
+app_name: pedl-summarize
+app_tag: summarize
+
+header: == ${hydra.help.app_name} ==
+
+footer: |-
+  You can find the detailed description on how to use
+  PEDL here: https://github.com/leonweber/pedl
+
+template: |-
+  ${hydra.help.header}
+  
+  This is ${hydra.help.app_name}
+  You can use ${hydra.help.app_name} as follows: 
+  ${hydra.help.app_name} input=[input_path]
+  
+  == Flags == 
+  
+  required:
+    input   : path to input relations [str]
+    output  : output filename [str] 
+  optional:
+    threshold           : only pairs with higher confidence than cutoff are extracted [double] (default: 0.5)
+    no_association_type : whether or not to ignore the relation type of a pair [boolean] (default: False)
+    top_k_articles      : the number of k articles summarized per relation [int] (default: 5)
+    entity_set          : subset of entities. All other extracted relations will be summarized in account 
+                          to the subset [set] (default: None)
+    mesh_terms          : pubmed ids will be filtered with the set of the mesh terms [set] (default: None)
+  
+  -------
+  ${hydra.help.footer}

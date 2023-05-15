@@ -16,6 +16,15 @@ setup(
     install_requires=required,
     long_description=open("README.md", "r", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    entry_points={"console_scripts": ["pedl=pedl.cli:main"]},
-    package_data={"pedl": ["data/*"]}
+    entry_points={"console_scripts": ["pedl-summarize=pedl.summarize:summarize",
+                                      "pedl-rebuild_pubtator_index=pedl.rebuild_pubtator_index:rebuild_pubtator_index",
+                                      "pedl-build_training_set=pedl.build_training_set:build_training_set",
+                                      "pedl-extract=pedl.predict:predict"]},
+    package_data={"pedl": ["data/*",
+                           'configs/*',
+                           'configs/database/*',
+                           'configs/entities/*',
+                           'configs/elastic/*',
+                           'configs/type/*',
+                           'configs/hydra/help/*']}
 )

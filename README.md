@@ -1,63 +1,85 @@
-# PEDL
+# PEDL: Protein-Drug and Protein-Protein Association Extraction
 
-PEDL is a tool for predicting protein-protein assocations from the biomedical literature.
-It searches more than 30 million abstracts of biomedical publications and over 4 million
-full texts with the help of [PubTatorCentral](https://www.ncbi.nlm.nih.gov/research/pubtator/).
-A state-of-the-art machine reading model then predicts which types of association between the proteins
-are supported by the literature. Among others, PEDL can detect posttranslational modifications, 
-transcription factor-target interactions, complex formations and controlled transports.
+PEDL is a powerful framework designed to extract protein-protein and drug-protein associations from biomedical literature. By searching over 30 million abstracts of biomedical publications and more than 4 million full texts using [PubTatorCentral](https://www.ncbi.nlm.nih.gov/research/pubtator/), PEDL leverages state-of-the-art machine reading models to predict association types between proteins, supported by literature evidence.
+
+PEDL is capable of detecting the following association types:
+
+- **Protein-Protein**: controls-phosphorylation-of, controls-state-change-of, controls-transport-of, controls-expression-of, in-complex-with, interacts-with, and catalysis-precedes 
+- **Drug-Protein**: antagonist, agonist, agonist-inihibitor, direct-regulator, activator, inhibitor, indirect-downregulator, indirect-upregulator, part-of, product-of, substrate, and substrate\_product-of
 
 ## Installation
+
+Install PEDL via pip:
 
 ```
 pip install pedl
 ```
 
 ## Usage
-PEDL supports two commands `pedl extract` and `pedl summarize`. The default workflow is to first
-`extract` associations for one or more protein pairs of interest, which will store the results
-for each pair in a separate file.
-The contents of these files can then be aggregated into a single csv-file with `summarize`.
 
-PEDL expects proteins to be identified either via HGNC symbols (for human genes)
-or entrez gene ids. 
-These can be looked up via standard webinterfaces like
-[NCBI Gene](https://www.ncbi.nlm.nih.gov/gene).
+PEDL provides two main commands: `pedl-extract` and `pedl-summarize`. The default workflow consists of using `pedl-extract` to obtain associations for one or more protein or drug pairs of interest, storing the results for each pair in separate files. These files can then be aggregated into a single spreadsheet using `pedl-summarize`.
+
+Proteins should be identified using HGNC symbols (for human genes) or Entrez gene IDs, searchable via [NCBI Gene](https://www.ncbi.nlm.nih.gov/gene). Drugs should be identified by their MeSH ID, searchable via [MeSH NLM](https://meshb.nlm.nih.gov/).
+
+### Building the PubTator Index (Optional)
+
+For searches involving more than 100 pairs with PEDL, it is recommended to use an ElasticSearch index. If you do not build the index, PEDL will automatically download the required data using the PubTatorCentral API and run the search on the fly. However, this will be slower and won't work for more than 100 pairs.
+
+PEDL supports storing a preprocessed version of all PTC texts in an ElasticSearch index. Install and run [Elasticsearch 7.17](https://www.elastic.co/guide/en/elasticsearch/reference/master/install-elasticsearch.html) and download all [PubTatorCentral files](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/PubTatorCentral_BioCXML/) on your server. Note that this requires around 800GB of disk space. You can either build a docker container or follow the instructions on the website to run a default Elasticsearch host. Rebuilding the PubTator index can take considerable time (around a day on 70 threads).
+
+#### pedl-rebuild_pubtator_index
+
+```bash
+pedl-rebuild_pubtator_index elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> pubtator_file=<path_to_pubtator_file> n_processes=<number of processes>
+```
+
+Example call:
+
+```bash
+pedl-rebuild_pubtator_index elastic.server=https://localhost:9200 elastic.password=Naifojair141+123cIlPo7fu elastic.ca_certs=/home/pedl/http_ca.crt pubtator_file=/home/pedl/output/BioCXML n_processes=10
+```
+
+### PEDL Extract
+
+#### Single Protein or Drug Interactions
+
+To extract interactions, you can use either the Entrez gene ID or name for proteins, and the MeSH ID or name for drugs. If using Entrez and/or MeSH IDs, set `use_ids=True`. Please note that mixing names and IDs in the same query is not possible.
+
+Set `type=protein_protein` for protein-protein interactions or `type=drug_protein` for drug-protein interactions.
 
 
-### extract
+- Example (Protein-Protein Interaction):
 
-* #### Interactions between single proteins
-    ```bash
-    pedl extract --p1 CD274 --p2 CMTM6 --out PEDL_predictions
-    ```
-  Results:
   ```bash
-  $ ls PEDL_predictions/
-  CD274-CMTM6.txt  CMTM6-CD274.txt
-  
-  $ head -n1 PEDL_predictions/CD274-CMTM6.txt
-  in-complex-with	0.98	6978769	A PD-L1 antibody, H1A, was developed to destabilize PD-L1 by disrupting the <e1>PD-L1</e1> stabilizer <e2>CMTM6</e2>.	PEDL
+  pedl-extract e1=CMTM6 e2=CD274 type=protein_protein out=PEDL_extractions
   ```
 
-* #### Pairwise interactions between multiple proteins
-  ```bash
-  pedl extract --p1 CMTM6 --p2  54918 920  --out PEDL_predictions
-  ```
-  searches for interactions between CMTM6 and 54918, and for interactions between CMTM6 and 920
+- Example (Drug-Protein Interaction):
 
+  ```bash
+  pedl-extract e1=MeSH:D063325 e2=1813 type=drug_protein out=PEDL_extractions use_ids=True
 
-* #### Read protein lists from files
-  ```bash
-  pedl extract --p1 proteins.txt --p2  54918 920  --out PEDL_predictions
   ```
-  searches for interactions between the proteins in `proteins.txt` and 54918, as well as interactions between proteins in `proteins.txt` and 920
-  
-* #### Allow multiple sentences
-  By default, PEDL will only search for interactions described in a single sentence.
-  If you want PEDL to read text snippets that span multiple sentences, use
-  `--multi_sentence`. Note, that this may slow down reading by a lot if you are not using a GPU.
+
+#### Pairwise Interactions Between Multiple Proteins or Drugs
+
+- Protein-Protein Interaction:
+
   ```bash
+  pedl-extract e1=[CMTM6,PDCD1LG2] e2=CD274 type=protein_protein out=PEDL_extractions
+  ```
+
+- Drug-Protein Interaction:
+
+  ```bash
+  pedl-extract e1=[MeSH:D000661,D008694] e2=4129 type=drug_protein out=PEDL_extractions use_ids=true
+  ```
+
+#### Pairwise Interactions Between All Proteins or Drugs
+
+- Protein-Protein Interaction:
+
+=======
     pedl extract --p1 CD274 --p2 CMTM6 --out PEDL_predictions --multi_sentence
   ```
   
@@ -93,41 +115,52 @@ By default, PEDL will create the summary CSV next to the results directory.
 pedl summarize PEDL_predictions
 ```
 Results:
+
   ```bash
-  $ head -n4 PEDL_predictions.tsv
-  p1      association type        p2      score (sum)     score (max)
-  CMTM6   controls-state-change-of        CD274   4.17    0.90
-  CMTM6   in-complex-with CD274   2.48    0.97
-  CD274   in-complex-with CMTM6   2.40    0.98
-  ````
+  pedl-extract e1=all e2=CD274 type=protein_protein out=PEDL_extractions 
+  ```
 
-Results can also be aggregate ignoring the association type and the direction of the association: 
+- Drug-Protein Interaction:
+
+  ```bash
+  pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true
+  ```
+- With a local PubTator index:
+    
+  ```bash
+  pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> 
+  ```
+
+#### Read Protein or Drug Lists from Files
+
+- Protein-Protein Interaction:
+
+  ```bash
+  pedl-extract e1=proteins.txt e2=[54918,920] type=protein_protein out=PEDL_extractions use_ids=true
+  ```
+
+- Drug-Protein Interaction:
+
+  ```bash
+  pedl-extract e1=drugs.txt e2=4129 type=drug_protein out=PEDL_extractions use_ids=true
+  ```
+
+### PEDL Summarize
+
+Create a summary spreadsheet for all results in a directory:
+
 ```bash
-  $ pedl summarize PEDL_predictions --no_association_type
-  
-  $ cat PEDL_predictions.tsv
-  p1      association type        p2      score (sum)     score (max)
-  CD274   association     CMTM6   11.52   1.00
-  ````
-
-
-
-
-## References
-Code and instructions to reproduce the results of our [paper](https://academic.oup.com/bioinformatics/article/36/Supplement_1/i490/5870497), can be found [here](https://github.com/leonweber/pedl_ismb20).
-
-If you use PEDL in your work, please cite us
-```
-@article{weber2020pedl,
-  title={PEDL: extracting protein--protein associations using deep language models and distant supervision},
-  author={Weber, Leon and Thobe, Kirsten and Migueles Lozano, Oscar Arturo and Wolf, Jana and Leser, Ulf},
-  journal={Bioinformatics},
-  volume={36},
-  number={Supplement\_1},
-  pages={i490--i498},
-  year={2020},
-  publisher={Oxford University Press}
-}
+pedl-summarize input=PEDL_predictions output=summary
 ```
 
+To filter results by specific MeSH terms, use the `mesh_terms` parameter. Escape special characters with a backslash `\`:
 
+```bash
+pedl-summarize input=PEDL_extractions output=summary mesh_terms=["Apoptosis","Lymphoma\, B-Cell"]
+```
+
+To only use high-confidence extractions, use the `threshold` parameter:
+
+```bash
+pedl-summarize input=PEDL_extractions output=summary threshold=0.9
+```

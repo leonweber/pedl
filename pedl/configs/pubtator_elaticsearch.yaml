@@ -1,0 +1,5 @@
+default:
+  - _self_
+  - database: default
+  - entities: default
+  - override hydra/help: pubtator_elasticsearch_help

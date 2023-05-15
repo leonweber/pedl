@@ -1,0 +1,35 @@
+app_name: pedl-extract
+app_tag: extract
+
+header: == ${hydra.help.app_name} ==
+
+footer: |-
+  You can find the detailed description on how to use
+  PEDL here: https://github.com/leonweber/pedl
+
+template: |-
+  ${hydra.help.header}
+  
+  This is ${hydra.help.app_name}
+  You can use ${hydra.help.app_name} as follows: 
+  ${hydra.help.app_name} e1=[first_entity] e2=[second_entity] type=[entity_combination]
+  
+  == Flags == 
+  
+  required:
+    e1    : the first entity. You can either parse a list of entities, a single entity as a string or a 
+            path to a file containing the entities. [str/List/path]
+    e1    : the second entity You can either parse a list of entities, a single entity as a string or a 
+            path to a file containing the entities. [str/List/path]
+    type  : the type combination of both entities e.g. protein_protein or grug_protein [str]
+  optional:
+    device          : the device on which pedl should run [str] (default: "cpu")
+    use_ids         : whether or not to use ids or names as entity inputs [boolean] (default: False)
+    cutoff          : only pairs with higher confidence than cutoff are extracted [double] (default: 0.01)
+    max_bag_size    : the max number of mention pairs [int] (default: 1000)
+    verbose         : whether or not to extend the logging information [boolean] (default: False)
+    out             : output directory [str] (default: "/PEDL_predictions")
+    skip_processed  : whether to skip already processed pairs [boolean] (default: False)
+  
+  -------
+  ${hydra.help.footer}

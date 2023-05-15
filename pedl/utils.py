@@ -1,23 +1,29 @@
 import gzip
+import itertools
 import json
+import logging
 import os
 import re
 import shutil
 import tempfile
+import urllib
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
+from io import BytesIO
 from operator import itemgetter
 from pathlib import Path
 from typing import Union, Optional, List, Set, Tuple, Dict
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
-import requests
 import bioc
 import numpy as np
-from transformers.file_utils import default_cache_path
+import requests
+from pytorch_lightning.utilities import rank_zero_only
 from segtok.segmenter import split_multi
-import pandas as pd
-
+from tqdm import tqdm as _tqdm, tqdm
+from transformers.file_utils import default_cache_path
 
 cache_root = Path(
     os.getenv("PEDL_CACHE", Path(default_cache_path).parent.parent / "pedl")
@@ -27,7 +33,6 @@ if not cache_root.exists():
 
 root = Path(__file__).parent
 
-
 class Sentence:
     def __init__(
         self,
@@ -35,12 +40,20 @@ class Sentence:
         start_pos: int,
         pmid: Optional[str] = None,
         text_blinded: Optional[str] = None,
+        entity_marker: dict = None,
     ):
         self.text = text
         self.pmid = pmid
         self.start_pos = start_pos
         self.end_pos = start_pos + len(text)
         self.text_blinded = text_blinded
+        if entity_marker:
+            self.em = entity_marker
+        else:
+            self.em = {"head_start": '<e1>',
+                       "head_end": '</e1>',
+                       "tail_start": '<e2>',
+                       "tail_end": '</e2>'}
 
     def __str__(self):
         return self.text
@@ -50,14 +63,28 @@ class Sentence:
 
     def get_unmarked_text(self):
         return (
-            self.text.replace("<e1>", "")
-            .replace("</e1>", "")
-            .replace("<e2>", "")
-            .replace("</e2>", "")
+            self.text.replace(self.em["head_start"], "")
+            .replace(self.em["head_end"], "")
+            .replace(self.em["tail_start"], "")
+            .replace(self.em["tail_end"], "")
         )
+
+    def __hash__(self):
+        return hash((self.pmid, self.text))
+
+    def __eq__(self, other):
+        return (self.pmid, self.text) == (other.pmid, other.text)
 
 
 class SegtokSentenceSplitter:
+    def __init__(self, entity_marker: dict = None):
+        if entity_marker:
+            self.entity_marker = entity_marker
+        else:
+            self.entity_marker = {"head_start": '<e1>',
+                                  "head_end": '</e1>',
+                                  "tail_start": '<e2>',
+                                  "tail_end": '</e2>'}
     """
     For further details see: https://github.com/fnl/segtok
     """
@@ -80,15 +107,13 @@ class SegtokSentenceSplitter:
                 Sentence(
                     text=sentence,
                     start_pos=sentence_offset,
+                    entity_marker=self.entity_marker
                 )
             ]
 
             offset += len(sentence)
 
         return sentences
-
-
-from tqdm import tqdm as _tqdm, tqdm
 
 
 def chunks(lst, n):
@@ -107,8 +132,6 @@ def get_pmid(document: bioc.BioCDocument) -> Tuple[str, int]:
         is_fulltext = 0
 
     return pmid, is_fulltext
-
-
 
 
 class Tqdm:
@@ -137,6 +160,20 @@ class Tqdm:
         new_kwargs = {"mininterval": Tqdm.default_mininterval, **kwargs}
 
         return _tqdm(*args, **new_kwargs)
+
+
+def get_logger(name=__name__, level=logging.INFO) -> logging.Logger:
+    """Initializes multi-GPU-friendly python logger."""
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # this ensures all logging levels get marked with the rank zero decorator
+    # otherwise logs would get multiplied for each GPU process in multi-GPU setup
+    for level in ("debug", "info", "warning", "error", "exception", "fatal", "critical"):
+        setattr(logger, level, rank_zero_only(getattr(logger, level)))
+
+    return logger
 
 
 def get_from_cache(url: str, cache_dir: Path = None) -> Path:
@@ -276,12 +313,15 @@ def replace_consistently(offset, length, replacement, text, offsets):
 
     return new_text, new_offsets
 
-def insert_consistently(offset, insertion, text, starts, ends):
+
+def insert_consistently(offset, insertion, text, starts, ends, idx_changed):
     new_text = text[:offset] + insertion + text[offset:]
     new_starts = starts.copy()
     new_ends = ends.copy()
-    new_starts[starts >= offset] += len(insertion)
-    new_ends[ends >= offset] += len(insertion)
+    not_idx_changed_mask = np.ones(len(starts), dtype=bool)
+    not_idx_changed_mask[idx_changed] = False
+    new_starts[(starts >= offset) & not_idx_changed_mask] += len(insertion)
+    new_ends[ends > offset] += len(insertion)
 
     return new_text, new_starts, new_ends
 
@@ -300,20 +340,34 @@ def delete_consistently(from_idx, to_idx , text, starts, ends):
 
 
 def replace_consistently_dict(text, span_to_replacement):
-    offsets = list(span_to_replacement)
-    replacements = [span_to_replacement[i] for i in offsets]
+    old_offset_to_new = {}
+    current_offset = 0
+    new_text = ""
 
-    starts = np.array([i[0] for i in offsets])
-    ends = np.array([i[1] for i in offsets])
+    # Sort spans by starting index
+    sorted_spans = sorted(span_to_replacement.items(), key=lambda x: x[0][0])
 
-    for i, replacement in enumerate(replacements):
-        text, starts, ends = delete_consistently(from_idx=starts[i],
-                                                 to_idx=ends[i], starts=starts,
-                                                 ends=ends, text=text)
-        text, starts, ends = insert_consistently(offset=starts[i], insertion=replacement,
-                                                 starts=starts, ends=ends, text=text)
+    for (start, end), substitution in sorted_spans:
+        # Add the text before the current span
+        new_text += text[current_offset:start]
 
-    return text
+        # Add the substitution and update the new offsets
+        old_offset_to_new[(start, end)] = (len(new_text),  len(substitution) + len(new_text))
+        new_text += substitution
+
+        # Update the current offset
+        current_offset = end
+
+    # Add the remaining text
+    new_text += text[current_offset:]
+
+    # check results
+    for (start, end), (new_start, new_end) in old_offset_to_new.items():
+        assert new_text[new_start:new_end] == span_to_replacement[(start, end)]
+
+    return new_text, old_offset_to_new
+
+
 
 
 def get_homologue_mapping(
@@ -375,6 +429,17 @@ class Entity:
 
         return str(self) < str(other)
 
+@dataclass
+class DatasetMetaInformation:
+    label_to_id: dict
+    id_to_label: dict
+    pair_types: set
+    name: str
+    type: str
+
+    def to(self, device):
+        return self
+
 
 def get_geneid_to_name():
     with open(root / "data" / "geneid_to_name.json") as f:
@@ -408,62 +473,17 @@ def get_gene_mapping(from_db: str, to_db: str):
     return dict(final_mapping)
 
 
-def build_summary_table(
-    raw_dir: Path, score_cutoff: float = 0.0, no_association_type: bool = False
-) -> pd.DataFrame:
-    df = {
-        "head": [],
-        "association type": [],
-        "tail": [],
-        "score (sum)": [],
-        "score (max)": [],
-        "pmids": []
-    }
 
-
-    rel_to_score_sum = defaultdict(float)
-    rel_to_score_max = defaultdict(float)
-    rel_to_pmids = defaultdict(set)
-
-    # hgnc_symbols = set(get_hgnc_symbol_to_gene_id().keys())
-
-    files = list(raw_dir.glob("*.txt"))
-    for file in tqdm(files):
-        with file.open() as f:
-            p1, p2 = file.name.replace(".txt", "").split("-_-")
-            for line in f:
-                fields = line.strip().split()
-                if fields:
-                    if no_association_type:
-                        p1_unified, p2_unified = sorted([p1, p2])
-                        rel = (p1_unified, "association", p2_unified)
-                    else:
-                        rel = (p1, fields[0], p2)
-                    if float(fields[1]) >= score_cutoff:
-                        rel_to_score_sum[rel] += float(fields[1])
-                        rel_to_score_max[rel] = max(
-                            float(fields[1]), rel_to_score_max[rel]
-                        )
-                        rel_to_pmids[rel].add(fields[2])
-
-    for rel, score_sum in rel_to_score_sum.items():
-        score_max = rel_to_score_max[rel]
-        pmids = ",".join(rel_to_pmids[rel])
-        df["head"].append(rel[0])
-        df["association type"].append(rel[1])
-        df["tail"].append(rel[2])
-        df["score (sum)"].append(score_sum)
-        df["score (max)"].append(score_max)
-        df["pmids"].append(pmids)
-
-    return pd.DataFrame(df)
-
+def overlaps(a, b):
+    a = [int(i) for i in a]
+    b = [int(i) for i in b]
+    return max(0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
 def get_hgnc_symbol_to_gene_id():
     hgnc_symbol_to_gene_id = {}
     url = "http://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt"
-    with open(cached_path(url, cache_dir=cache_root)) as f:
+    with open(cached_path(url, cache_dir=cache_root), encoding="utf8") as f:
         next(f)
         for line in f:
             fields = line.strip().split("\t")
@@ -473,3 +493,58 @@ def get_hgnc_symbol_to_gene_id():
                 hgnc_symbol_to_gene_id[symbol] = gene_id
 
     return hgnc_symbol_to_gene_id
+
+
+def get_mesh_id_to_chem_name():
+    resp = cached_path("http://ctdbase.org/reports/CTD_chemicals.tsv.gz", cache_dir=cache_root)
+    mesh_id_to_chem_name = {}
+    with gzip.open(resp) as f:
+        lines = f.readlines()
+        for line in lines:
+            fields = line.decode('utf-8').strip().split("\t")
+            if fields[0].startswith('# ChemicalName'):
+                continue
+            if len(fields) > 5:
+                symbol = fields[0]
+                mesh_id = fields[1]
+                mesh_id_to_chem_name[symbol] = mesh_id
+    return mesh_id_to_chem_name
+
+
+def maybe_mapped_entities(entities, normalized_entity_ids, use_ids=False):
+    maybe_mapped_entities = []
+    if use_ids:
+        for entity in entities:
+            if re.match(r"^[A-Z]\d+", entity):
+                entity = 'MESH:' + entity
+            else:
+                if not entity.startswith('MESH:'):
+                    entity = entity[0:4].upper() + entity[4:]
+            maybe_mapped_entities.append(entity)
+    else:
+        for entity in entities:
+            maybe_mapped_entities.append(normalized_entity_ids[entity])
+    return maybe_mapped_entities
+
+
+def doc_synced(final_path, type):
+    local_time = datetime.utcfromtimestamp(os.path.getmtime(final_path)).strftime('%Y-%m-%d %H:%M')
+    weburl = urllib.request.urlopen("https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral")
+    url_lines = weburl.readlines()
+    if type == 'gene':
+        # get the Last modified date of gene2pubtatorcentral.gz
+        x = str(url_lines[23]).split('</a>')[-1]
+        x = " ".join(list(filter(None, x.split(' ')))[0:2])
+    else:
+        # get the Last modified date of chemical2pubtatorcentral.gz
+        x = str(url_lines[19]).split('</a>')[-1]
+        x = " ".join(list(filter(None, x.split(' ')))[0:2])
+    if x > local_time:
+        really_continue = input(f"Your local {type}2pubtatorcentral is outdated. Do you want to download the lastes version? Type 'yes':\n")
+        if really_continue == "yes":
+            print("Downloading gene2pubtatorcentral...")
+            path = cached_path(
+                "https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral/gene2pubtatorcentral.gz",
+                "data",
+            )
+            unpack_file(path, final_path)

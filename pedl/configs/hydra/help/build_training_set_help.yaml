@@ -1,0 +1,44 @@
+app_name: pedl build_training_set
+app_tag: build_training_set
+
+
+header: == ${hydra.help.app_name} ==
+
+footer: |-
+  You can find the detailed description on how to use
+  PEDL here: https://github.com/leonweber/pedl
+  
+  Powered by Hydra (https://hydra.cc)
+  Use --hydra-help to view Hydra specific help
+
+template: |-
+  ${hydra.help.header}
+  
+  This is ${hydra.help.app_name}
+  You can use ${hydra.help.app_name} as follows: 
+  ${hydra.help.app_name} triples=
+  
+  == Flags == 
+  
+  required:
+    triples : ??? [str]
+  optional:
+    out             : [str] (default: "")
+    out_blinded     : [str] (default: "")
+    expand_species  : [str] (default: "null")
+  
+  == Configuration groups ==
+  
+  $APP_CONFIG_GROUPS
+  
+  == Config ==
+  
+  You can override every flag, for example:
+  '${hydra.help.app_name} triples=[] n_worker=50 pubtator=localhost:4243'
+  
+  -------
+  All config values set for this ${hydra.help.app_tag}:
+  
+  $CONFIG
+  -------
+  ${hydra.help.footer}

@@ -1,8 +1,5 @@
-import json
-import os
-import random
+import re
 import sys
-import uuid
 from collections import defaultdict
 from operator import itemgetter
 from pathlib import Path
@@ -14,59 +11,64 @@ import numpy as np
 from elasticsearch import Elasticsearch, helpers
 from tqdm import tqdm
 
-from pedl.utils import SegtokSentenceSplitter, get_pmid, chunks, cache_root, replace_consistently
+from pedl.utils import SegtokSentenceSplitter, get_pmid, chunks, cache_root, replace_consistently_dict
 from pedl.data_getter import DataGetterAPI
 
-
-MASK_TYPES = {"Gene": "protein"}
 INDEX_NAME = "pubtator_masked"
 
 
-def _add_masked_entities(elastic_doc) -> None:
+def _add_masked_entities(elastic_doc, mask_types=None) -> None:
     elastic_doc["entities_masked"] = {}
     entities = list(elastic_doc["entities"])
 
-    offsets = []
-    lengths_orig = []
-    entity_to_offset_idx = defaultdict(list)
+    span_to_replacement = {}
+
+    idx_mask = 1
+    for entity in entities:
+        spans = elastic_doc["entities"][entity]
+
+        entity_type = entity.split("|")[1]
+        replacement = None
+        if entity_type in mask_types:
+            for span in spans:
+                span = tuple(span)
+                if span in span_to_replacement:
+                    continue
+                else:
+                    if replacement is None:
+                        replacement = "<" + mask_types[entity_type] + str(idx_mask) + "/>"
+                        idx_mask += 1
+                    # fix spans crossing sentence boundaries
+                    if span[1] > len(elastic_doc["text"]):
+                        span = (span[0], len(elastic_doc["text"]))
+
+                    span_to_replacement[span] = replacement
+
+    text = elastic_doc["text"]
+    text_masked, old_span_to_new = replace_consistently_dict(text, span_to_replacement)
+
+    elastic_doc["text_masked"] = text_masked
 
     for entity in entities:
         spans = elastic_doc["entities"][entity]
+        new_spans = []
         for span in spans:
-            entity_to_offset_idx[entity].append(len(offsets))
-            offsets.append(span[0])
-            lengths_orig.append(span[1] - span[0])
-
-    idx_mask = 1
-    text = elastic_doc["text"]
-    lengths_new = np.array(lengths_orig)
-    offsets_new = np.array(offsets)
-    for entity in entities:
-        entity_type = entity.split("|")[1]
-        if entity_type in MASK_TYPES:
-            replacement = "<" + MASK_TYPES[entity_type] + str(idx_mask) + "/>"
-            for offset_idx in entity_to_offset_idx[entity]:
-                text, offsets_new = replace_consistently(offset=offsets_new[offset_idx],
-                                     length=lengths_orig[offset_idx],
-                                     replacement=replacement,
-                                     text=text,
-                                     offsets=offsets_new)
-                lengths_new[offset_idx] = len(replacement)
-            idx_mask += 1
-
-    elastic_doc["text_masked"] = text
-
-    for entity, offset_indices in entity_to_offset_idx.items():
-        spans_new = []
-        for offset_idx in offset_indices:
-            start = offsets_new[offset_idx]
-            end = start + lengths_new[offset_idx]
-            spans_new.append([start, end])
-        elastic_doc["entities_masked"][entity] = spans_new
+            span = tuple(span)
+            if span in old_span_to_new:
+                new_spans.append(old_span_to_new[span])
+            else:
+                new_spans.append(span)
+        elastic_doc["entities_masked"][entity] = new_spans
 
 
-def _process_pubtator_files(files: List[Path], q: mp.Queue):
-    sentence_splitter = SegtokSentenceSplitter()
+
+    # assert len(elastic_doc["entities_masked"]) == len(elastic_doc["entities"])
+    # for entity in elastic_doc["entities_masked"]:
+    #     assert len(elastic_doc["entities_masked"][entity]) >= len(elastic_doc["entities"][entity])
+
+
+def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, entity_marker: dict = None):
+    sentence_splitter = SegtokSentenceSplitter(entity_marker=entity_marker)
     for file in files:
         actions = []
         with file.open() as f:
@@ -82,8 +84,8 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
 
                     entities_passage = []
                     for annotation in passage.annotations:
-                        entities_ann = DataGetterAPI.get_entities_from_annotation(annotation,
-                                                                                  {})
+                        entities_ann = DataGetterAPI.get_entities_from_annotation(annotation=annotation,
+                                                                                  homologue_mapping={})
                         for entity in entities_ann:
                             for location in annotation.locations:
                                 span = (location.offset-passage.offset,
@@ -116,6 +118,14 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
                             "span": [sentence.start_pos + passage.offset, sentence.end_pos + passage.offset + passage.offset + passage.offset]
                         }
                         while entity[0][0] < sentence.end_pos:
+                            if entity[0][0] - sentence.start_pos < 0:
+                                if len(entities_passage) == 0:
+                                    entity = None
+                                    break
+                                else:
+                                    entity = entities_passage.pop()
+                                continue
+
                             if entity[1].type.lower() in elastic_doc:
                                 elastic_doc[entity[1].type.lower()].append(entity[1].cuid)
                                 span = [entity[0][0] - sentence.start_pos, entity[0][1] - sentence.start_pos]
@@ -126,7 +136,7 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
                             else:
                                 entity = entities_passage.pop()
 
-                        _add_masked_entities(elastic_doc)
+                        _add_masked_entities(elastic_doc, mask_types)
 
                         action = {
                             "_index": INDEX_NAME,
@@ -137,13 +147,23 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue):
         q.put(actions)
 
 
-def build_index(pubtator_path, n_processes):
+def build_index(pubtator_file, n_processes, elastic_search_server, masked_types=None, entity_marker: dict = None,
+                password: str = False, ca_certs: str = False):
 
     n_processes = n_processes or mp.cpu_count()
-    client = Elasticsearch(timeout=3000)
+    if password and ca_certs:
+        client = Elasticsearch(elastic_search_server,
+                               timeout=3000,
+                               basic_auth=("elastic", password),
+                               ca_certs=ca_certs)
+    elif elastic_search_server:
+        client = Elasticsearch(elastic_search_server,
+                               timeout=3000,)
+    else:
+        client = Elasticsearch(timeout=3000,)
 
-    if client.indices.exists(INDEX_NAME):
-        client.indices.delete(INDEX_NAME)
+    if client.indices.exists(index=INDEX_NAME):
+        client.indices.delete(index=INDEX_NAME)
 
     client.indices.create(
         index=INDEX_NAME,
@@ -165,16 +185,16 @@ def build_index(pubtator_path, n_processes):
 
     ctx = mp.get_context()
     q = ctx.Queue(maxsize=10)
-    files = list(pubtator_path.glob("*bioc.xml"))
+    files = list(pubtator_file.glob("*BioC.XML"))
     processes = []
     for file_chunk in chunks(files, len(files) // n_processes - 1):
         p = ctx.Process(
-            target=_process_pubtator_files, args=(file_chunk, q)
+            target=_process_pubtator_files, args=(file_chunk, q, masked_types, entity_marker)
         )
         p.start()
         processes.append(p)
 
-    pbar = tqdm(desc="Building pubtator elasticsearch index", total=len(files))
+    pbar = tqdm(desc="Building pubtator elastic index", total=len(files))
     n_files_processed = 0
     while n_files_processed < len(files):
         elastic_docs = q.get()
@@ -192,3 +212,4 @@ def build_index(pubtator_path, n_processes):
 
     for p in processes:
         p.join()
+

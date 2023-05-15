@@ -1,0 +1,31 @@
+model_name: "leonweber/pedl-cpa"
+batch_size: 1
+expand_species:
+multi_sentence: False
+num_workers: 1
+worker_id: 0
+local_model: False
+max_sequence_length: 512
+use_cls: True
+use_starts: False
+use_ends: False
+num_labels: 14
+head_type: Chemical
+tail_type: Gene
+entity_to_mask: null
+
+label_to_id :
+  NONE: 0
+  ACTIVATOR: 1
+  AGONIST: 2
+  AGONIST-ACTIVATOR: 3
+  AGONIST-INHIBITOR: 4
+  ANTAGONIST: 5
+  DIRECT-REGULATOR: 6
+  INDIRECT-DOWNREGULATOR: 7
+  INDIRECT-UPREGULATOR: 8
+  INHIBITOR: 9
+  PART-OF: 10
+  PRODUCT-OF: 11
+  SUBSTRATE: 12
+  SUBSTRATE_PRODUCT-OF: 13

@@ -1,0 +1,35 @@
+# path to original working directory
+# hydra hijacks working directory by changing it to the current log directory,
+# so it's useful to have this path as a special variable
+# learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
+work_dir: ${hydra:runtime.cwd}
+
+hydra:
+  run:
+    dir: logs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+defaults:
+  - _self_
+  - database: default
+  - entities: default
+  - type: protein_protein
+  - elastic: default
+  - override hydra/help: predict_help
+
+e1: ???
+e2: ???
+
+use_ids: False
+#if you want to use ids instead of names
+device: ""
+#topk: False
+cutoff: 0.01
+#higher confidence than cutoff is extracted
+max_bag_size: 1000
+#number mention pairs
+verbose: False
+#extend logging information
+skip_processed: False # whether to skip already processed pairs
+
+out: "./PEDL_predictions"
+#output folder

@@ -10,3 +10,7 @@ diskcache
 openpyxl
 pandas
 entrezpy
+hydra-core
+elasticsearch
+pytorch_lightning
+biopython

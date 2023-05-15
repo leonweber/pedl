@@ -1,0 +1,14 @@
+# Databases for Proteins
+protein:
+  - data: "http://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt"
+  - sep: "\t"
+  - format: "txt"
+
+# Databases for Chemicals
+chemical:
+  - data: "http://ctdbase.org/downloads/#allchems/CTD_chemicals.csv.gz"
+  - sep: ","
+  - format: 'csv'
+  - comment: '#'
+  - head: ["ChemicalName","ChemicalID","CasRN","Definition","ParentIDs","TreeNumbers","ParentTreeNumbers","Synonyms"]
+  - compression: 'gzip'

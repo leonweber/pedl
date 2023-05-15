@@ -1,11 +1,12 @@
 import string
 from collections import defaultdict
 from operator import itemgetter
-from typing import Optional, Dict, List, Set
+from typing import Optional, Dict, List, Set, Tuple
 from argparse import ArgumentParser
 from pathlib import Path
 import random
 
+from lxml import etree
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -14,57 +15,56 @@ import pandas as pd
 import numpy as np
 import requests
 from openpyxl.worksheet.table import Table, TableStyleInfo
-
-from pedl.utils import build_summary_table
+from omegaconf import DictConfig
+from tqdm import tqdm, trange
+import hydra
+from Bio import Entrez
 
 np.random.seed(42)
 random.seed(42)
 
-ESEARCH_MAX_COUNT = 100000
+ESEARCH_MAX_COUNT = 100
 
 
-def get_pmid_to_mesh_terms(mesh_terms: Set[str]) -> Dict[str, List[str]]:
+def get_pmid_to_mesh_terms(pmids: Set[str], mesh_terms: Set[str]) -> Dict[str, List[str]]:
+    """
+    Get a mapping of PubMed IDs to their associated MeSH terms.
+
+    This function retrieves MeSH terms for a given set of PubMed IDs (pmids) by querying the PubMed database.
+    It then filters the MeSH terms based on a provided set of terms (mesh_terms) and returns a dictionary
+    mapping each PubMed ID to a list of its associated MeSH terms.
+
+    Args:
+    pmids (Set[str]): A set of unique PubMed IDs for which MeSH terms are to be fetched.
+    mesh_terms (Set[str]): A set of MeSH terms to filter the results by.
+
+    Returns:
+    Dict[str, List[str]]: A dictionary mapping each PubMed ID (key) to a list of its associated MeSH terms (value).
+
+    Examples:
+    >>> pmids = {"12345678", "23456789"}
+    >>> mesh_terms = {"Disease", "Therapeutics"}
+    >>> get_pmid_to_mesh_terms(pmids, mesh_terms)
+    {'12345678': ['Disease'], '23456789': ['Therapeutics']}
+    """
     pmid_to_mesh_terms = defaultdict(list)
-    base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
-    for mesh_term in mesh_terms:
-        n_processed = 0
-        result = requests.get(
-            base_url,
-            params={
-                "db": "pubmed",
-                "term": f"{mesh_term}[MESH]",
-                "tool": "PEDL",
-                "email": "weberple@hu-berlin.de",
-                "retmode": "json",
-                "retmax": ESEARCH_MAX_COUNT,
-            },
-        )
-        total_count = int(result.json()["esearchresult"]["count"])
-        if total_count == 0:
-            print(
-                f"PubMed search for {mesh_term}[MESH] did not yield any articles. Is this really a valid mesh term?"
-            )
-        n_processed += len(result.json()["esearchresult"]["idlist"])
-        for pmid in result.json()["esearchresult"]["idlist"]:
-            pmid_to_mesh_terms[pmid].append(mesh_term)
+    pmids_list = list(pmids)
+    for i in trange(0, len(pmids_list), ESEARCH_MAX_COUNT, desc="Fetching MeSH terms"):
+        batch_pmids = pmids_list[i:i + ESEARCH_MAX_COUNT]
+        pmids_str = ",".join(batch_pmids)
 
-        while n_processed < total_count:
-            result = requests.get(
-                base_url,
-                params={
-                    "db": "pubmed",
-                    "term": f"{mesh_term}[MESH]",
-                    "tool": "PEDL",
-                    "email": "weberple@hu-berlin.de",
-                    "retmode": "json",
-                    "retmax": ESEARCH_MAX_COUNT,
-                    "retstart": n_processed,
-                },
-            )
-            n_processed += len(result.json()["esearchresult"]["idlist"])
-            for pmid in result.json()["esearchresult"]["idlist"]:
-                pmid_to_mesh_terms[pmid].append(mesh_term)
+        Entrez.email = "leonweber@cis.lmu.de"
+        Entrez.tool = "PEDL"
+        handle = Entrez.efetch(db="pubmed", id=pmids_str, retmode="xml")
+        tree = etree.parse(handle)
+
+        for article in tree.xpath("//PubmedArticle"):
+            pmid = article.xpath("MedlineCitation/PMID")[0].text
+            mesh_terms_pmid = set(article.xpath("MedlineCitation/MeshHeadingList/MeshHeading/DescriptorName/text()"))
+            mesh_terms_pmid = mesh_terms_pmid.intersection(mesh_terms)  # TODO We might change this to also match subterms
+
+            pmid_to_mesh_terms[pmid] = sorted(mesh_terms_pmid)
 
     return pmid_to_mesh_terms
 
@@ -128,12 +128,11 @@ def _add_table(sheet, num_rows, num_cols):
             i += 1
 
 
-
 def fill_sheet_from_df(
     sheet,
     df: pd.DataFrame,
     ppa_dir: Path,
-    topk: int = 5,
+    top_k_articles: int = 5,
     threshold: float = 0.5,
     pmid_to_mesh_terms: Optional[Dict] = None,
     annotation_mode: bool = False,
@@ -145,7 +144,8 @@ def fill_sheet_from_df(
         "text",
         "pubmed",
         "article score",
-        "PPA score (total)",
+        "total score",
+        "mean score",
         "MESH terms",
     ]
     if annotation_mode:
@@ -173,7 +173,7 @@ def fill_sheet_from_df(
                     if float(score) < threshold or ppa_type != row["association type"]:
                         continue
 
-                    if pmid_to_mesh_terms and pmid not in pmid_to_mesh_terms:
+                    if pmid_to_mesh_terms and not pmid_to_mesh_terms[pmid]:
                         continue
 
                     ppa_data["pmid_to_score"][pmid] += float(score)
@@ -184,7 +184,7 @@ def fill_sheet_from_df(
     for ppa_data in sorted(all_ppa_data, key=itemgetter("score"), reverse=True):
         for i, (pmid, article_score) in enumerate(sorted(
             ppa_data["pmid_to_score"].items(), key=itemgetter(1), reverse=True
-        )[:topk]):
+        )[:top_k_articles]):
             fields = ppa_data["pmid_to_fields"][pmid][0]
             ppa_type, score, pmid, text, _ = fields
             sheet[f"A{idx_next_free_row + 2}"].value = ppa_data["row"]["head"]
@@ -207,8 +207,10 @@ def fill_sheet_from_df(
 
             sheet[f"G{idx_next_free_row + 2}"].value = ppa_data["row"]["score (sum)"]
 
+            sheet[f"H{idx_next_free_row + 2}"].value = ppa_data["row"]["score (sum)"] / ppa_data["row"]["num_found"]
+
             if pmid_to_mesh_terms and pmid in pmid_to_mesh_terms:
-                sheet[f"H{idx_next_free_row + 2}"].value = ", ".join(
+                sheet[f"I{idx_next_free_row + 2}"].value = ", ".join(
                     pmid_to_mesh_terms[pmid]
                 )
             idx_next_free_row += 1
@@ -234,62 +236,6 @@ def _get_ppas_from_sheet(sheet):
 
 
 
-def summarize_excel(args):
-    if args.mesh_terms:
-        pmid_to_mesh_terms = get_pmid_to_mesh_terms(set(args.mesh_terms))
-    else:
-        pmid_to_mesh_terms = None
-
-    df_summary = build_summary_table(raw_dir=args.ppa_dir, score_cutoff=args.threshold)
-
-    wb = Workbook()
-    sheet = wb.active
-
-    if args.set_a:
-        with args.set_a.open() as f:
-            set_a = set(f.read().split("\n"))
-            df_a_to_b = df_summary[df_summary["head"].isin(set_a)]
-            df_b_to_a = df_summary[df_summary["tail"].isin(set_a)]
-            sheet.title = f"{args.set_a.with_suffix('').name} -> other"[:31]
-            fill_sheet_from_df(
-                sheet=sheet,
-                df=df_a_to_b,
-                ppa_dir=args.ppa_dir,
-                threshold=args.threshold,
-                topk=args.topk,
-                pmid_to_mesh_terms=pmid_to_mesh_terms,
-                annotation_mode=args.annotation,
-            )
-            _add_summary_sheet(df_a_to_b, sheet, wb)
-
-            sheet = wb.create_sheet(title=f"other -> {args.set_a.with_suffix('').name}"[:31])
-            fill_sheet_from_df(
-                sheet=sheet,
-                df=df_b_to_a,
-                ppa_dir=args.ppa_dir,
-                threshold=args.threshold,
-                topk=args.topk,
-                pmid_to_mesh_terms=pmid_to_mesh_terms,
-                annotation_mode=args.annotation,
-            )
-            _add_summary_sheet(df_b_to_a, sheet, wb)
-    else:
-        fill_sheet_from_df(
-            sheet=sheet,
-            df=df_summary,
-            ppa_dir=args.ppa_dir,
-            threshold=args.threshold,
-            topk=args.topk,
-            pmid_to_mesh_terms=pmid_to_mesh_terms,
-            annotation_mode=args.annotation,
-        )
-
-        _add_summary_sheet(df_summary, sheet, wb)
-
-    output_file = args.output.with_suffix(".xlsx")
-    wb.save(output_file)
-
-
 def _add_summary_sheet(df_summary, sheet, wb):
     ppas_in_sheet = _get_ppas_from_sheet(sheet)
     summary_sheet = wb.create_sheet(title=("Summary_" + sheet.title)[:31])
@@ -303,3 +249,122 @@ def _add_summary_sheet(df_summary, sheet, wb):
     adjust_sheet_width(summary_sheet)
     _add_table(summary_sheet, num_rows=n_rows_added,
                num_cols=len(df_summary.columns))
+
+
+def build_summary_table(
+    raw_dir: Path, threshold: float = 0.0, no_association_type: bool = False
+) -> pd.DataFrame:
+    df = {
+        "head": [],
+        "association type": [],
+        "tail": [],
+        "score (sum)": [],
+        "score (max)": [],
+        "pmids": [],
+        "num_found": [],
+    }
+
+
+    rel_to_score_sum = defaultdict(float)
+    rel_to_score_max = defaultdict(float)
+    rel_to_num_found = defaultdict(int)
+    rel_to_pmids = defaultdict(set)
+
+    # hgnc_symbols = set(get_hgnc_symbol_to_gene_id().keys())
+
+    files = list(raw_dir.glob("*.txt"))
+    for file in tqdm(files):
+        with file.open() as f:
+            p1, p2 = file.name.replace(".txt", "").split("-_-")
+            for line in f:
+                fields = line.strip().split()
+                if fields:
+                    if no_association_type:
+                        p1_unified, p2_unified = sorted([p1, p2])
+                        rel = (p1_unified, "association", p2_unified)
+                    else:
+                        rel = (p1, fields[0], p2)
+                    if float(fields[1]) >= threshold:
+                        rel_to_score_sum[rel] += float(fields[1])
+                        rel_to_num_found[rel] += 1
+                        rel_to_score_max[rel] = max(
+                            float(fields[1]), rel_to_score_max[rel]
+                        )
+                        rel_to_pmids[rel].add(fields[2])
+
+    for rel, score_sum in rel_to_score_sum.items():
+        score_max = rel_to_score_max[rel]
+        pmids = ",".join(rel_to_pmids[rel])
+        df["head"].append(rel[0])
+        df["association type"].append(rel[1])
+        df["tail"].append(rel[2])
+        df["score (sum)"].append(score_sum)
+        df["score (max)"].append(score_max)
+        df["pmids"].append(pmids)
+        df["num_found"].append(rel_to_num_found[rel])
+
+    return pd.DataFrame(df)
+
+
+def summarize_excel(cfg):
+    df_summary = build_summary_table(raw_dir=Path(cfg.input), threshold=cfg.threshold)
+    all_pmids = set()
+    for pmids_rel in df_summary["pmids"]:
+        all_pmids.update(pmids_rel.split(","))
+    if cfg.mesh_terms:
+        pmid_to_mesh_terms = get_pmid_to_mesh_terms(all_pmids, set(cfg.mesh_terms))
+    else:
+        pmid_to_mesh_terms = None
+
+    wb = Workbook()
+    sheet = wb.active
+
+    if cfg.entity_set:
+        with cfg.entity_set.open() as f:
+            entity_set = set(f.read().split("\n"))
+            df_a_to_b = df_summary[df_summary["head"].isin(entity_set)]
+            df_b_to_a = df_summary[df_summary["tail"].isin(entity_set)]
+            sheet.title = f"{cfg.entity_set.with_suffix('').name} -> other"[:31]
+            fill_sheet_from_df(
+                sheet=sheet,
+                df=df_a_to_b,
+                ppa_dir=Path(cfg.input),
+                threshold=cfg.threshold,
+                top_k_articles=cfg.top_k_articles,
+                pmid_to_mesh_terms=pmid_to_mesh_terms,
+            )
+            _add_summary_sheet(df_a_to_b, sheet, wb)
+
+            sheet = wb.create_sheet(title=f"other -> {cfg.entity_set.with_suffix('').name}"[:31])
+            fill_sheet_from_df(
+                sheet=sheet,
+                df=df_b_to_a,
+                ppa_dir=Path(cfg.input),
+                threshold=cfg.threshold,
+                top_k_articles=cfg.top_k_articles,
+                pmid_to_mesh_terms=pmid_to_mesh_terms,
+            )
+            _add_summary_sheet(df_b_to_a, sheet, wb)
+    else:
+        fill_sheet_from_df(
+            sheet=sheet,
+            df=df_summary,
+            ppa_dir=Path(cfg.input),
+            threshold=cfg.threshold,
+            top_k_articles=cfg.top_k_articles,
+            pmid_to_mesh_terms=pmid_to_mesh_terms,
+        )
+
+        _add_summary_sheet(df_summary, sheet, wb)
+
+    output_file = Path(cfg.output).with_suffix(".xlsx")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(output_file)
+
+
+@hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
+def summarize(cfg: DictConfig):
+    summarize_excel(cfg)
+
+if __name__ == "__main__":
+    summarize()

@@ -1,0 +1,18 @@
+# path to original working directory
+# hydra hijacks working directory by changing it to the current log directory,
+# so it's useful to have this path as a special variable
+# learn more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
+work_dir: ${hydra:runtime.cwd}
+
+defaults:
+  - database: default
+  - entities: default
+  - elastic: default
+  - override hydra/help: build_training_set_help
+
+out: ""
+out_blinded: ""
+expand_species: null
+triples: ???
+
+max_size: 1000
