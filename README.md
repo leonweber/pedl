@@ -9,6 +9,11 @@ PEDL is capable of detecting the following association types:
 
 For example usage with expected results, see [this notebook](https://github.com/leonweber/pedl/blob/master/example_usage.ipynb).
 
+### README Contents
+- [Installation](#installation)
+- [Usage](#usage)
+- [FAQ](#faq)
+
 ## Installation
 
 Install PEDL via pip:
@@ -130,3 +135,12 @@ To only use high-confidence extractions, use the `threshold` parameter:
 ```bash
 pedl-summarize input=PEDL_extractions output=summary threshold=0.9
 ```
+
+  ## FAQ
+  - **On which platforms does PEDL work?**
+    - We have thoroughly tested PEDL on Linux and MacOS and verified that its basic functionality works on Windows. We strongly recommend using [mambaforge](https://github.com/conda-forge/miniforge#mambaforge) or [anaconda](https://www.anaconda.com/products/individual) as your Python environment.
+  - **How can I perform a clean uninstall of PEDL?**
+    1. Uninstall the package: `pip uninstall pedl`
+    2. Delete the PEDL cache folder. You can typically find it under `~/.cache/pedl`. So you can delete it by running `rm -rf ~/.cache/pedl`.
+  - **I am running into issues with PEDL. What can I do?**
+    - Try to perform a clean uninstall and reinstall of PEDL. If the issue persists, please open an issue on GitHub and we will try to help you as soon as possible. 
