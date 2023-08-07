@@ -142,8 +142,8 @@ def predict(cfg: DictConfig):
                 f_pairs_processed.write(f"{head}\t{tail}\n")
                 continue
 
-            name1 = geneid_to_name.get(head.cuid, head.cuid)
-            name2 = geneid_to_name.get(tail.cuid, tail.cuid)
+            name1 = head.cuid.replace(":", "_")
+            name2 = tail.cuid.replace(":", "_")
 
             file_out = Path(cfg.out) / f"{name1}-_-{name2}.txt"
 
