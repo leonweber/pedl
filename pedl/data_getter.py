@@ -294,7 +294,7 @@ class DataGetterAPI(DataGetter):
                     offset_ent2=loc_ent2,
                     len_ent1=len_ent1,
                     len_ent2=len_ent2,
-                    pmid=document.id,
+                    pmid=get_pmid(document)[0],
                 )
                 if sentence:
                     sentences.append(sentence)
@@ -354,6 +354,8 @@ class DataGetterAPI(DataGetter):
         pmcids_to_retreive = [
             pmid_to_pmcid[i] for i in uncached_pmids if i in pmid_to_pmcid
         ]
+
+        pmcid_to_pmid = {v: k for k, v in pmid_to_pmcid.items()}
 
         for pmid_chunk in list(chunks(pmids_to_retreive, self.CHUNK_SIZE)):
 
