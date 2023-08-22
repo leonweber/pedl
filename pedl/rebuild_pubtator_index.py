@@ -15,9 +15,7 @@ def rebuild_pubtator_index(cfg: DictConfig):
         sys.exit(0)
     pubtator_elasticsearch.build_index(pubtator_file=Path(cfg.pubtator_file),
                                        n_processes=cfg.n_processes,
-                                       elastic_search_server=cfg.elastic.server,
+                                       elasticsearch=cfg.elastic,
                                        masked_types=cfg.type.entity_to_mask,
                                        entity_marker=cfg.entities.entity_marker,
-                                       password=cfg.elastic.password,
-                                       ca_certs=cfg.elastic.ca_certs
                                        )

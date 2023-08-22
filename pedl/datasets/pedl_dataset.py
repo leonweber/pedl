@@ -55,12 +55,12 @@ class PEDLDataset(Dataset):
             {
                 "additional_special_tokens": list(entity_marker.values())
             })
-        if entity_to_mask:
-            self.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
-                }
-            )
+        # if entity_to_mask:
+        #     self.tokenizer.add_special_tokens(
+        #         {
+        #             "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
+        #         }
+        #     )
 
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
@@ -109,9 +109,6 @@ class PEDLDataset(Dataset):
         # deduplicate sentences
         sentences = list(set(sentences))
 
-        if not sentences:
-            return {"pair": (head, tail)}
-
         if self.relations:
             labels = torch.zeros(len(self.label_to_id))
             for relation in self.relations[idx]:
@@ -127,11 +124,14 @@ class PEDLDataset(Dataset):
         else:
             texts = [s.text for s in sentences]
 
+        if not texts:
+            return {"pair": (head, tail)}
+
         encoding = self.tokenizer.batch_encode_plus(texts, max_length=self.max_length,
                                                     truncation=True)
         filtered_encoding = {k: [] for k in encoding}
         filtered_sentences = []
-        # move texts with missing entity markers
+        # remove texts with missing entity markers
         for i, text in enumerate(texts):
             if (self.entity_marker["head_start"] in text and self.entity_marker["head_end"] in text and
                     self.entity_marker["tail_start"] in text and self.entity_marker["tail_end"] in text):
@@ -140,6 +140,9 @@ class PEDLDataset(Dataset):
                 filtered_sentences.append(sentences[i])
             else:
                 logger.warning(f"Missing entity markers in sentence: {sentences[i]}")
+
+        if len(filtered_sentences) == 0:
+            return {"pair": (head, tail)}
 
         sample = {
             "encoding": filtered_encoding,

@@ -32,6 +32,7 @@ verbose: False
 skip_processed: False # whether to skip already processed pairs
 #predict cross product of all entities
 all_combinations: True
+batch_size: 1
 
 out: "./PEDL_predictions"
 #output folder

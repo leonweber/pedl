@@ -1,5 +1,4 @@
 model_name: "leonweber/pedl-cpa"
-batch_size: 1
 expand_species:
 multi_sentence: False
 num_workers: 1

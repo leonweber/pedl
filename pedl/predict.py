@@ -43,6 +43,8 @@ def predict(cfg: DictConfig):
 
     if cfg.verbose:
         logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.ERROR)
 
     e1_is_all = cfg.e1 == "all"
     e2_is_all = cfg.e2 == "all"
@@ -134,8 +136,10 @@ def predict(cfg: DictConfig):
 
     os.makedirs(cfg.out, exist_ok=True)
 
-    dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=cfg.type.batch_size,
+    dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=1,
                             collate_fn=model.collate_fn, prefetch_factor=100)
+    dataloader = DataLoader(dataset, num_workers=0, batch_size=1,
+                            collate_fn=model.collate_fn)
     with (Path(cfg.out) / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader, desc="Reading"):
             head, tail = datapoint["pair"]
@@ -155,11 +159,11 @@ def predict(cfg: DictConfig):
             if "cuda" in cfg.device:
                 with torch.cuda.amp.autocast():
                     x, meta = model.forward_batched(**datapoint["encoding"],
-                                                    batch_size=cfg.type.batch_size)
+                                                    batch_size=cfg.batch_size)
                     probs = torch.sigmoid(meta["alphas_by_rel"])
             else:
                 x, meta = model.forward_batched(**datapoint["encoding"],
-                                                batch_size=cfg.type.batch_size)
+                                                batch_size=cfg.batch_size)
                 probs = torch.sigmoid(meta["alphas_by_rel"])
 
             if (probs < cfg.cutoff).all():
