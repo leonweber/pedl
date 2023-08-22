@@ -1,3 +1,4 @@
 server: "" # e.g. "localhost:9200"
+username: False
 password: False
 ca_certs: False

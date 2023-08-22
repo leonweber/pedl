@@ -147,20 +147,38 @@ def _process_pubtator_files(files: List[Path], q: mp.Queue, mask_types=None, ent
         q.put(actions)
 
 
-def build_index(pubtator_file, n_processes, elastic_search_server, masked_types=None, entity_marker: dict = None,
-                password: str = False, ca_certs: str = False):
+def build_index(pubtator_file, n_processes, elasticsearch, masked_types=None, entity_marker: dict = None):
 
     n_processes = n_processes or mp.cpu_count()
-    if password and ca_certs:
-        client = Elasticsearch(elastic_search_server,
-                               timeout=3000,
-                               basic_auth=("elastic", password),
-                               ca_certs=ca_certs)
-    elif elastic_search_server:
-        client = Elasticsearch(elastic_search_server,
-                               timeout=3000,)
+    if elasticsearch.server.startswith("https://"):
+        scheme, host, port = elasticsearch.server.split(":")
+        host = host[2:]
     else:
-        client = Elasticsearch(timeout=3000,)
+        host, port = elasticsearch.server.split(":")
+
+    if not elasticsearch.password and not elasticsearch.ca_certs:
+        client = Elasticsearch(hosts=[{"host": host,
+                                            "port": int(port),
+                                            "scheme": "http",
+                                            }], timeout=3000,
+                                    )
+    elif not elasticsearch.password:
+        client = Elasticsearch(hosts=[{"host": host,
+                                            "port": int(port),
+                                            "scheme": "https",
+                                            }], timeout=3000,
+                                    ca_certs=elasticsearch.ca_certs
+                                    )
+
+    else:
+        client = Elasticsearch(hosts=[{"host": host,
+                                            "port": int(port),
+                                            "scheme": "http",
+                                            }], timeout=3000,
+                                    basic_auth=(elasticsearch.username, elasticsearch.password),
+                                    ca_certs=elasticsearch.ca_certs
+                                    )
+
 
     if client.indices.exists(index=INDEX_NAME):
         client.indices.delete(index=INDEX_NAME)

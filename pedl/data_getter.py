@@ -19,6 +19,7 @@ from pedl.utils import get_homologue_mapping, cache_root, SegtokSentenceSplitter
     replace_consistently_dict, doc_synced
 
 
+
 class DataGetter(abc.ABC):
 
     @abc.abstractmethod
@@ -30,19 +31,36 @@ class DataGetterPubtator(DataGetter):
 
     def __init__(self, elasticsearch, entity_marker: dict = None, entity_to_mask: dict = None,
                  max_size: int = 1000):
-        # TODO check whether elastic search is running with pubtator index
         if elasticsearch.server.startswith("https://"):
             scheme, host, port = elasticsearch.server.split(":")
             host = host[2:]
         else:
             host, port = elasticsearch.server.split(":")
         self.types_to_blind = {"gene"}
-        self.client = Elasticsearch(hosts=[{"host": host,
-                                            "port": int(port),
-                                            "scheme": "https",
-                                            }], timeout=3000,
-                                    basic_auth=("elastic", elasticsearch.password),
-                                    ca_certs=elasticsearch.ca_certs)
+
+        if not elasticsearch.password and not elasticsearch.ca_certs:
+            self.client = Elasticsearch(hosts=[{"host": host,
+                                                "port": int(port),
+                                                "scheme": "http",
+                                                }], timeout=3000,
+                                        )
+        elif not elasticsearch.password:
+            self.client = Elasticsearch(hosts=[{"host": host,
+                                                "port": int(port),
+                                                "scheme": "https",
+                                                }], timeout=3000,
+                                        ca_certs=elasticsearch.ca_certs
+                                        )
+
+        else:
+            self.client = Elasticsearch(hosts=[{"host": host,
+                                                "port": int(port),
+                                                "scheme": "http",
+                                                }], timeout=3000,
+                                        basic_auth=(elasticsearch.username, elasticsearch.password),
+                                        ca_certs=elasticsearch.ca_certs
+                                        )
+
         if entity_marker:
             self.et = entity_marker
         else:

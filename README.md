@@ -37,13 +37,13 @@ PEDL supports storing a preprocessed version of all PTC texts in an ElasticSearc
 #### pedl-rebuild_pubtator_index
 
 ```bash
-pedl-rebuild_pubtator_index elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> pubtator_file=<path_to_pubtator_file> n_processes=<number of processes>
+pedl-rebuild_pubtator_index elastic.server=<server_address> pubtator_file=<path_to_pubtator_file> n_processes=<number of processes>
 ```
 
 Example call:
 
 ```bash
-pedl-rebuild_pubtator_index elastic.server=https://localhost:9200 elastic.password=Naifojair141+123cIlPo7fu elastic.ca_certs=/home/pedl/http_ca.crt pubtator_file=/home/pedl/output/BioCXML n_processes=10
+pedl-rebuild_pubtator_index elastic.server=https://localhost:9200 pubtator_file=/home/pedl/output/BioCXML n_processes=10
 ```
 
 ### PEDL Extract
@@ -99,7 +99,7 @@ Set `type=protein_protein` for protein-protein interactions or `type=drug_protei
 - With a local PubTator index:
     
   ```bash
-  pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true elastic.server=<server_address> elastic.password=<password> elastic.ca_certs=<path_to_certs> 
+  pedl-extract e1=all e2=4129 type=drug_protein out=PEDL_extractions use_ids=true elastic.server=<server_address> 
   ```
 
 #### Read Protein or Drug Lists from Files
