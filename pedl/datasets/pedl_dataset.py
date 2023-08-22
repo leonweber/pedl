@@ -33,13 +33,14 @@ class PEDLDataset(Dataset):
         entity_marker: dict = None,
         entity_to_mask: dict = None,
         label_to_id: dict = None,
-        use_starts: bool = False,
-        use_ends: bool = False,
+        all_combinations: bool = True
     ):
         self.label_to_id = label_to_id
         self.id_to_label = {v: k for k, v in label_to_id.items()}
+
         self.heads = heads
         self.tails = tails
+
         self.max_bag_size = max_bag_size
         self.tokenizer = AutoTokenizer.from_pretrained(str(base_model))
         if entity_marker:
@@ -54,12 +55,12 @@ class PEDLDataset(Dataset):
             {
                 "additional_special_tokens": list(entity_marker.values())
             })
-        # if entity_to_mask:
-            # self.tokenizer.add_special_tokens(
-            #     {
-            #         "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
-            #     }
-            # )
+        if entity_to_mask:
+            self.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens": [f"<{entity_to_mask['Gene']}{i}/>" for i in range(1, 47)]
+                }
+            )
 
         self.n_classes = len(self.label_to_id)
         self.data_getter = data_getter
@@ -74,17 +75,28 @@ class PEDLDataset(Dataset):
         self.entity_to_side_information = {}
         if entity_side_information:
             self.entity_to_side_information = self.get_side_information(entity_side_information)
+        self.all_combinations = all_combinations
+
+        if not self.all_combinations:
+            assert len(self.heads) == len(self.tails)
 
 
     def __len__(self):
-        return len(self.heads) * len(self.tails)
+        if self.all_combinations:
+            return len(self.heads) * len(self.tails)
+        else:
+            return len(self.heads)
 
     def __getitem__(self, idx) -> Optional[Dict]:
         if torch.is_tensor(idx):
             idx = idx.item()
 
-        head = self.heads[idx // len(self.tails)]
-        tail = self.tails[idx % len(self.tails)]
+        if self.all_combinations:
+            head = self.heads[idx // len(self.tails)]
+            tail = self.tails[idx % len(self.tails)]
+        else:
+            head = self.heads[idx]
+            tail = self.tails[idx]
 
         if (str(head), str(tail)) in self.skip_pairs:
             return {"pair": (head, tail)}

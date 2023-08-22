@@ -30,6 +30,8 @@ max_bag_size: 1000
 verbose: False
 #extend logging information
 skip_processed: False # whether to skip already processed pairs
+#predict cross product of all entities
+all_combinations: True
 
 out: "./PEDL_predictions"
 #output folder

@@ -490,7 +490,7 @@ def get_hgnc_symbol_to_gene_id():
             if len(fields) > 18:
                 symbol = fields[1]
                 gene_id = fields[18]
-                hgnc_symbol_to_gene_id[symbol] = gene_id
+                hgnc_symbol_to_gene_id[symbol.lower()] = gene_id
 
     return hgnc_symbol_to_gene_id
 
@@ -507,7 +507,7 @@ def get_mesh_id_to_chem_name():
             if len(fields) > 5:
                 symbol = fields[0]
                 mesh_id = fields[1]
-                mesh_id_to_chem_name[symbol] = mesh_id
+                mesh_id_to_chem_name[symbol.lower()] = mesh_id
     return mesh_id_to_chem_name
 
 
@@ -523,7 +523,7 @@ def maybe_mapped_entities(entities, normalized_entity_ids, use_ids=False):
             maybe_mapped_entities.append(entity)
     else:
         for entity in entities:
-            maybe_mapped_entities.append(normalized_entity_ids[entity])
+            maybe_mapped_entities.append(normalized_entity_ids[entity.lower()])
     return maybe_mapped_entities
 
 

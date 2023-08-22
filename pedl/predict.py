@@ -116,6 +116,7 @@ def predict(cfg: DictConfig):
                           max_length=cfg.type.max_sequence_length,
                           label_to_id=cfg.type.label_to_id,
                           entity_to_mask=cfg.type.entity_to_mask,
+                          all_combinations=cfg.all_combinations,
                           )
     model = BertForDistantSupervision.from_pretrained(cfg.type.model_name,
                                                       tokenizer=dataset.tokenizer,
@@ -179,15 +180,17 @@ def predict(cfg: DictConfig):
 def get_entity_list(entity, normalized_entity_ids):
     if isinstance(entity, int):
         entity = str(entity)
-    if isinstance(entity, str):
-        entity = entity.split()
-    if len(entity) == 1 and os.path.exists(entity[0]):
-        with open(entity[0]) as f:
+
+    if isinstance(entity, str) and os.path.exists(entity):
+        with open(entity) as f:
             p1s = f.read().strip().split("\n")
-    elif len(entity) == 1 and entity[0] == "all":
-        p1s = sorted(normalized_entity_ids.keys())
     else:
-        p1s = [str(e) for e in entity]
+        if isinstance(entity, str):
+            entity = entity.split()
+        if len(entity) == 1 and entity[0] == "all":
+            p1s = sorted(normalized_entity_ids.keys())
+        else:
+            p1s = [str(e) for e in entity]
     return p1s
 
 
