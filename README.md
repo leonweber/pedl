@@ -124,6 +124,12 @@ Create a summary spreadsheet for all results in a directory:
 pedl-summarize input=PEDL_predictions output=summary
 ```
 
+In case, you want a CSV file instead of an Excel file, use the `plain` parameter:
+
+```bash
+pedl-summarize input=PEDL_predictions output=summary plain=True
+```
+
 To filter results by specific MeSH terms, use the `mesh_terms` parameter. Escape special characters with a backslash `\`:
 
 ```bash
