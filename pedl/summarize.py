@@ -259,6 +259,7 @@ def build_summary_table(
         "association type": [],
         "tail": [],
         "score (sum)": [],
+        "score (mean)": [],
         "score (max)": [],
         "pmids": [],
         "num_found": [],
@@ -300,10 +301,17 @@ def build_summary_table(
         df["tail"].append(rel[2])
         df["score (sum)"].append(score_sum)
         df["score (max)"].append(score_max)
+        df["score (mean)"].append(score_sum / rel_to_num_found[rel])
         df["pmids"].append(pmids)
         df["num_found"].append(rel_to_num_found[rel])
 
     return pd.DataFrame(df)
+
+
+def summarize_csv(cfg):
+    df_summary = build_summary_table(raw_dir=Path(cfg.input), threshold=cfg.threshold,
+                                     no_association_type=cfg.no_association_type)
+    df_summary.to_csv(Path(cfg.output).with_suffix(".csv"), index=False)
 
 
 def summarize_excel(cfg):
@@ -364,7 +372,12 @@ def summarize_excel(cfg):
 
 @hydra.main(config_path="configs", config_name="summarize.yaml", version_base=None)
 def summarize(cfg: DictConfig):
-    summarize_excel(cfg)
+    if cfg.plain:
+        summarize_csv(cfg)
+    else:
+        summarize_excel(cfg)
+
+
 
 if __name__ == "__main__":
     summarize()
