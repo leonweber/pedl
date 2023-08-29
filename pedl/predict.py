@@ -73,8 +73,11 @@ def predict(cfg: DictConfig):
 
     processed_pairs = get_processed_pairs(Path(cfg.out))
 
-    geneid_to_name = get_geneid_to_name()
-    if len(heads) * len(tails) > 100 and not cfg.elastic.server:
+    if cfg.all_combinations:
+        num_queries = len(heads) * len(tails)
+    else:
+        num_queries = len(heads)
+    if num_queries > 100 and not cfg.elastic.server:
         print(f"Using PEDL without a local PubTator copy is only supported for small queries up to 100 protein pairs. Your query contains {len(heads) * len(tails)} pairs. Aborting.")
         sys.exit(1)
 
@@ -138,8 +141,6 @@ def predict(cfg: DictConfig):
 
     dataloader = DataLoader(dataset, num_workers=cfg.type.num_workers, batch_size=1,
                             collate_fn=model.collate_fn, prefetch_factor=100)
-    dataloader = DataLoader(dataset, num_workers=0, batch_size=1,
-                            collate_fn=model.collate_fn)
     with (Path(cfg.out) / f"{PREFIX_PROCESSED_PAIRS}_{uuid.uuid4()}").open("w") as f_pairs_processed:
         for datapoint in tqdm(dataloader, desc="Reading"):
             head, tail = datapoint["pair"]
