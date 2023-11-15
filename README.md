@@ -149,4 +149,23 @@ pedl-summarize input=PEDL_extractions output=summary threshold=0.9
     1. Uninstall the package: `pip uninstall pedl`
     2. Delete the PEDL+ cache folder. You can typically find it under `~/.cache/pedl`. So you can delete it by running `rm -rf ~/.cache/pedl`.
   - **I am running into issues with PEDL+. What can I do?**
-    - Try to perform a clean uninstall and reinstall of PEDL+. If the issue persists, please open an issue on GitHub and we will try to help you as soon as possible. 
+    - Try to perform a clean uninstall and reinstall of PEDL+. If the issue persists, please open an issue on GitHub and we will try to help you as soon as possible.
+   
+## Citation
+If you use PEDL+ in your work, please cite the following paper:
+```bibtex
+@article{10.1093/bioinformatics/btad603,
+    author = {Weber, Leon and Barth, Fabio and Lorenz, Leonie and Konrath, Fabian and Huska, Kirsten and Wolf, Jana and Leser, Ulf},
+    title = "{PEDL+: Protein-centered relation extraction from PubMed at your fingertip}",
+    journal = {Bioinformatics},
+    pages = {btad603},
+    year = {2023},
+    month = {11},
+    abstract = "{Relation extraction (RE) from large text collections is an important tool for database curation, pathway reconstruction, or functional omics data analysis. In practice, RE often is part of a complex data analysis pipeline requiring specific adaptations like restricting the types of relations or the set of proteins to be considered. However, current systems are either non-programmable web sites or research code with fixed functionality. We present PEDL+, a user-friendly tool for extracting protein-protein and protein-chemical associations from PubMed articles. PEDL+ combines state-of-the-art NLP technology with adaptable ranking and filtering options and can easily be integrated into analysis pipelines. We evaluated PEDL+ in two pathway curation projects and found that 59\\% to 80\\% of its extractions were helpful.PEDL+ is freely available at https://github.com/leonweber/pedl.Supplementary data are available at Bioinformatics online.}",
+    issn = {1367-4811},
+    doi = {10.1093/bioinformatics/btad603},
+    url = {https://doi.org/10.1093/bioinformatics/btad603},
+    eprint = {https://academic.oup.com/bioinformatics/advance-article-pdf/doi/10.1093/bioinformatics/btad603/53180165/btad603.pdf},
+}
+```
+
